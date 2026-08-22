@@ -1,0 +1,165 @@
+# Binary Trading Signal Intelligence Platform
+# Production Configuration
+
+system:
+  app_name: "ZIA QUANT — Signal Intelligence Platform"
+  version: "1.0.0"
+  trader_name: "Zia"
+  log_level: "INFO"
+  random_seed: 42
+
+alerts:
+  # To enable Telegram alerts:
+  # 1. Talk to @BotFather on Telegram -> create bot -> paste token below
+  # 2. Talk to @userinfobot on Telegram -> get your chat id -> paste below
+  telegram_bot_token: ""
+  telegram_chat_id: ""
+
+assets:
+  # Forex Pairs
+  EURUSD:
+    name: "EUR/USD"
+    ticker: "EURUSD=X"
+    category: "forex"
+    payout: 0.85
+    pip_size: 0.0001
+    active_sessions: ["london", "new_york"]
+  GBPUSD:
+    name: "GBP/USD"
+    ticker: "GBPUSD=X"
+    category: "forex"
+    payout: 0.85
+    pip_size: 0.0001
+    active_sessions: ["london", "new_york"]
+  USDJPY:
+    name: "USD/JPY"
+    ticker: "JPY=X"
+    category: "forex"
+    payout: 0.85
+    pip_size: 0.01
+    active_sessions: ["tokyo", "london", "new_york"]
+  AUDUSD:
+    name: "AUD/USD"
+    ticker: "AUDUSD=X"
+    category: "forex"
+    payout: 0.82
+    pip_size: 0.0001
+    active_sessions: ["sydney", "tokyo"]
+  USDCAD:
+    name: "USD/CAD"
+    ticker: "CAD=X"
+    category: "forex"
+    payout: 0.82
+    pip_size: 0.0001
+    active_sessions: ["new_york"]
+  USDCHF:
+    name: "USD/CHF"
+    ticker: "CHF=X"
+    category: "forex"
+    payout: 0.82
+    pip_size: 0.0001
+    active_sessions: ["london", "new_york"]
+  # Commodities
+  XAUUSD:
+    name: "XAU/USD (Gold)"
+    ticker: "GC=F"
+    category: "commodity"
+    payout: 0.80
+    pip_size: 0.01
+    active_sessions: ["london", "new_york"]
+  XAGUSD:
+    name: "XAG/USD (Silver)"
+    ticker: "SI=F"
+    category: "commodity"
+    payout: 0.78
+    pip_size: 0.001
+    active_sessions: ["london", "new_york"]
+  # Crypto
+  BTCUSD:
+    name: "BTC/USD"
+    ticker: "BTC-USD"
+    category: "crypto"
+    payout: 0.80
+    pip_size: 1.0
+    active_sessions: ["all"]
+  ETHUSD:
+    name: "ETH/USD"
+    ticker: "ETH-USD"
+    category: "crypto"
+    payout: 0.80
+    pip_size: 0.01
+    active_sessions: ["all"]
+
+timeframes:
+  primary: "1m"
+  confirmation: ["5m", "15m"]
+  min_candles_required: 200
+
+expiries:
+  durations: [60, 180, 300]
+  labels:
+    60: "1 Minute"
+    180: "3 Minutes"
+    300: "5 Minutes"
+  default: 300
+
+signals:
+  min_evidence_score: 65
+  strong_evidence_score: 80
+  min_probability_margin: 0.05
+  max_signals_per_hour: 12
+  cooldown_seconds: 120
+  max_consecutive_losses: 3
+
+indicators:
+  ema_fast: 9
+  ema_medium: 21
+  ema_slow: 50
+  ema_trend: 200
+  sma_short: 10
+  sma_medium: 20
+  sma_long: 50
+  rsi_period: 14
+  rsi_overbought: 70.0
+  rsi_oversold: 30.0
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  stoch_k: 14
+  stoch_d: 3
+  stoch_smooth: 3
+  stoch_overbought: 80.0
+  stoch_oversold: 20.0
+  cci_period: 20
+  cci_overbought: 100.0
+  cci_oversold: -100.0
+  williams_period: 14
+  williams_overbought: -20.0
+  williams_oversold: -80.0
+  atr_period: 14
+  bb_period: 20
+  bb_std: 2.0
+  adx_period: 14
+  adx_strong_trend: 25.0
+
+backtesting:
+  execution_lag_seconds: 3
+  spread_pips: 1.0
+  slippage_pips: 0.5
+  skip_weekend_gaps: true
+  skip_holiday_gaps: true
+  max_gap_minutes: 5
+  train_ratio: 0.60
+  validation_ratio: 0.20
+  test_ratio: 0.20
+  min_disjoint_periods: 3
+  min_cross_assets: 2
+  min_expectancy: 0.01
+  min_sample_size: 50
+  monte_carlo_iterations: 5000
+  monte_carlo_max_ruin_pct: 5.0
+
+server:
+  host: "127.0.0.1"
+  port: 5000
+  debug: false

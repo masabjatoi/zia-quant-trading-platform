@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zia Quant — Quotex Signal Intelligence Platform</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-title">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1>ZIA QUANT</h1>
+          <span style="background: linear-gradient(135deg, var(--gold-accent), #ff9900); color: #000; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.5px;">PRO EDITION FOR ZIA</span>
+        </div>
+        <p>Quotex Signal Intelligence & Quantitative Execution Engine</p>
+      </div>
+    </div>
+    <div class="status-group">
+      <div class="clock-pill">
+        <span>🕒</span>
+        <span id="utc-clock">--:--:-- UTC</span>
+      </div>
+      <div class="clock-pill" style="color: var(--gold-accent);">
+        <span>⏳ Next Scan:</span>
+        <span id="countdown-timer">60s</span>
+      </div>
+      <div class="live-indicator">
+        <div class="pulse-dot"></div>
+        <span>LIVE FEED</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container -->
+  <div class="container">
+
+    <!-- Navigation Tabs -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('scanner')">📡 Live Scanner</button>
+      <button class="tab-btn" onclick="switchTab('backtest')">🧪 Backtest Lab</button>
+      <button class="tab-btn" onclick="switchTab('paper')">📝 Paper Trading</button>
+      <button class="tab-btn" onclick="switchTab('analytics')">📊 Performance Analytics</button>
+      <button class="tab-btn" onclick="switchTab('health')">🛡️ System Diagnostics</button>
+    </div>
+
+    <!-- TAB 1: LIVE SCANNER -->
+    <div id="tab-scanner" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+        <h2 style="font-size: 1.1rem; font-weight: 700; color: var(--text-secondary);">
+          OPPORTUNITY HEATMAP (<span id="asset-count">10</span> Assets Active)
+        </h2>
+        <button class="btn-primary" onclick="triggerManualScan()">⚡ Instant Scan</button>
+      </div>
+
+      <div class="scanner-grid" id="scanner-cards">
+        <!-- Rendered dynamically by dashboard.js -->
+        <div style="padding: 40px; text-align: center; color: var(--text-muted); grid-column: 1 / -1;">
+          Connecting to market data feed & initialising quantitative models for Zia...
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BACKTEST LAB -->
+    <div id="tab-backtest" class="tab-content" style="display: none;">
+      <div class="table-panel" style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">🧪 Walk-Forward Binary Backtesting Engine</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px;">
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 6px;">ASSET</label>
+            <select id="bt-asset" class="form-control" style="width: 100%;">
+              <option value="EURUSD">EUR/USD</option>
+              <option value="GBPUSD">GBP/USD</option>
+              <option value="USDJPY">USD/JPY</option>
+              <option value="AUDUSD">AUD/USD</option>
+              <option value="XAUUSD">Gold (XAU/USD)</option>
+              <option value="BTCUSD">Bitcoin (BTC/USD)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 6px;">HISTORICAL WINDOW</label>
+            <select id="bt-period" class="form-control" style="width: 100%;">
+              <option value="5d">Past 5 Days (1-min candles)</option>
+              <option value="1mo">Past 1 Month (1-min candles)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 6px;">EXECUTION LAG</label>
+            <select id="bt-lag" class="form-control" style="width: 100%;">
+              <option value="3">3 Seconds (Realistic Delay)</option>
+              <option value="5">5 Seconds (Conservative)</option>
+              <option value="0">0 Seconds (Theoretical)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 6px;">BROKER PAYOUT</label>
+            <select id="bt-payout" class="form-control" style="width: 100%;">
+              <option value="0.85">85% Payout</option>
+              <option value="0.80">80% Payout</option>
+              <option value="0.90">90% Payout</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="runBacktest()">▶ Run Simulation</button>
+      </div>
+
+      <div id="bt-results-panel" class="table-panel" style="display: none;">
+        <h3 style="font-size: 1rem; margin-bottom: 14px;">Simulation Results & Performance Audit</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 18px;" id="bt-metrics-cards">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PAPER TRADING -->
+    <div id="tab-paper" class="tab-content" style="display: none;">
+      <div class="table-panel">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">📝 Zia's Live Paper Trading Forward Log</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Asset</th>
+              <th>Direction</th>
+              <th>Entry Price</th>
+              <th>Expiry Price</th>
+              <th>Stake</th>
+              <th>Outcome</th>
+              <th>PnL</th>
+            </tr>
+          </thead>
+          <tbody id="paper-trades-body">
+            <tr>
+              <td colspan="8" style="text-align: center; color: var(--text-muted);">No paper trades recorded yet. Autopilot opens trades on high conviction signals.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: ANALYTICS -->
+    <div id="tab-analytics" class="tab-content" style="display: none;">
+      <div class="table-panel" id="analytics-summary">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">📊 Zia's Quantitative Performance Analytics</h2>
+        <div id="analytics-content" style="color: var(--text-secondary);">Loading metrics...</div>
+      </div>
+    </div>
+
+    <!-- TAB 5: HEALTH -->
+    <div id="tab-health" class="tab-content" style="display: none;">
+      <div class="table-panel">
+        <h2 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">🛡️ System Diagnostics</h2>
+        <div id="health-content" style="color: var(--text-secondary);">Checking subsystem status...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Signal Inspector Modal -->
+  <div class="modal-overlay" id="signal-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title" style="font-size: 1.1rem;">Signal Evidence Audit</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+      <div id="modal-body">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

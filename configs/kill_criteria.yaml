@@ -1,0 +1,28 @@
+# Pre-Committed Kill Criteria & Validation Thresholds
+# These rules are frozen before research to prevent p-hacking / curve fitting.
+
+per_strategy_kill_criteria:
+  rule_description: >
+    If expectancy (at realistic payout with 3-second lag and 1-pip spread modeled)
+    is not positive and statistically distinguishable from zero across >=3 disjoint
+    out-of-sample test windows, the strategy must be abandoned.
+  min_expectancy_per_trade: 0.01
+  min_periods_passing: 3
+  min_sample_per_period: 40
+  max_acceptable_brier_score: 0.25
+
+project_level_kill_criteria:
+  rule_description: >
+    If the combined multi-engine model (structure + zones + liquidity + indicators)
+    fails to achieve positive expectancy across the multi-asset out-of-sample benchmark,
+    re-evaluate core assumptions before running real execution.
+
+regime_attribute_validation:
+  rule_description: >
+    A regime attribute (e.g. Trend vs Range) is only kept in production filters if
+    strategy expectancy shows a statistically significant divergence between regime states.
+  min_expectancy_spread: 0.04
+
+monte_carlo_stress_limits:
+  max_ruin_probability_pct: 5.0
+  max_consecutive_losses_95th: 10
