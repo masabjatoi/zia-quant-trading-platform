@@ -46,7 +46,7 @@ class SystemHealthChecker:
 
         # 2. Data Feed Connectivity Check
         try:
-            p = self.provider.get_current_price("EUR/USD")
+            p = self.provider.get_current_price("EURUSD")
             if p is not None and p > 0:
                 checks["data_feed"] = {"status": "OK", "detail": f"Live EUR/USD quote active ({p:.5f})"}
             else:

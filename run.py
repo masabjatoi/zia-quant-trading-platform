@@ -24,7 +24,7 @@ from app.strategies.liquidity_strategy import LiquidityStrategy
 from app.strategies.mtf_strategy import MultiTimeframeStrategy
 from app.scheduler.engine import SchedulerEngine
 from app.observability.logger import setup_structured_logger
-from web.app import app, socketio, broadcast_scan_results
+from web.app import app, socketio, broadcast_scan_results, get_local_ip
 
 logger = setup_structured_logger("PlatformLauncher")
 
@@ -55,18 +55,20 @@ def main():
     scheduler.start()
     logger.info("Background market scanner & paper trade settlement scheduler active.")
 
-    host = config.get("server.host", "127.0.0.1")
-    port = int(config.get("server.port", 5000))
+    host = os.environ.get("HOST", config.get("server.host", "0.0.0.0"))
+    port = int(os.environ.get("PORT", config.get("server.port", 5000)))
     debug = bool(config.get("server.debug", False))
+    local_ip = get_local_ip()
 
-    print("\n" + "="*65)
-    print(" [ONLINE] QUOTEX SIGNAL INTELLIGENCE PLATFORM RUNNING")
-    print("="*65)
-    print(f" Dashboard URL: http://{host}:{port}")
-    print(f" Mode:          Signal Intelligence & Forward Paper Trading")
-    print(f" Data Source:   Multi-Asset Stream (1m primary / 5m, 15m HTF)")
-    print(f" Risk Engine:   3-Tier Confidence + Payout Threshold + Anti-Martingale")
-    print("="*65 + "\n")
+    print("\n" + "="*68)
+    print(" [ONLINE] ZIA QUANT — SIGNAL INTELLIGENCE & EXECUTION ENGINE")
+    print("="*68)
+    print(f" 💻 Laptop / PC:    http://localhost:{port} (or http://127.0.0.1:{port})")
+    print(f" 📱 Mobile Phone:   http://{local_ip}:{port} (Connect to same Wi-Fi)")
+    print(f" ⚡ Strategy Units: 6 Quantitative Multi-Timeframe Engines Active")
+    print(f" 🛡️  Risk Engine:   3-Tier Confidence + Regime Viability + Payout Gate")
+    print(f" 📲 PWA Ready:     Open on phone Safari/Chrome -> 'Add to Home Screen'")
+    print("="*68 + "\n")
 
     socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
 

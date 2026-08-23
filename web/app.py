@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
+import socket
 import threading
 from datetime import datetime
 
@@ -45,9 +46,46 @@ metrics_collector = MetricsCollector.get_instance()
 data_provider = get_data_provider()
 
 
+def get_local_ip():
+    """Detects the active local network IPv4 address for cross-device access."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/ping", methods=["GET", "HEAD"])
+def api_ping():
+    """Fast keep-alive health ping for 24/7 cloud server hosting."""
+    return jsonify({"status": "ok", "service": "zia-quant", "timestamp": datetime.utcnow().isoformat()}), 200
+
+
+@app.route("/api/server-info", methods=["GET"])
+def api_server_info():
+    """Returns local network pairing information for mobile devices."""
+    local_ip = get_local_ip()
+    port = int(config.get("server.port", 5000))
+    return jsonify({
+        "status": "success",
+        "local_ip": local_ip,
+        "port": port,
+        "mobile_url": f"http://{local_ip}:{port}",
+        "laptop_url": f"http://localhost:{port}",
+        "hostname": socket.gethostname()
+    })
 
 
 @app.route("/api/scan", methods=["GET"])
