@@ -20,6 +20,20 @@ document.addEventListener("DOMContentLoaded", () => {
   loadPaperTrades();
   loadServerInfo();
 
+  // Handle mobile screen wake-up / tab focus
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      loadInitialScan();
+      if (socket && !socket.connected) {
+        socket.connect();
+      }
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    loadInitialScan();
+  });
+
   // Keyboard shortcut: Esc to close modals
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -28,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
 
 // =============================================================================
 // 1. Clock & Next Scan Countdown
