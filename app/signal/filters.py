@@ -10,7 +10,7 @@ Enforces hard guardrails:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple, List
 
 from app.models import SignalDecision, SignalDirection, MultiAttributeRegime
@@ -42,7 +42,10 @@ class RiskFilterEngine:
         if direction == SignalDirection.NO_TRADE:
             return FilterResult(passed=False, rejection_reason="Direction is NO_TRADE")
 
-        dt = now or datetime.utcnow()
+        if now is not None:
+            dt = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+        else:
+            dt = datetime.now(timezone.utc)
 
         # 1. Minimum Evidence Score (Calibrated default: 55)
         min_score = config.get("signals.min_evidence_score", 55)
@@ -59,20 +62,27 @@ class RiskFilterEngine:
                 rejection_reason="Market volatility is too low (dormant/spread risk)"
             )
 
-        # 3. Asset Cooldown (Default: 60s between signals on same asset)
-        cooldown = config.get("signals.cooldown_seconds", 60)
+        # 3. Asset Cooldown Check
+        # Prevents taking back-to-back trades across different cycles, but preserves the signal during the active 1-minute candle
+        cooldown = config.get("signals.cooldown_seconds", 0)  # Set to 0 for continuous 1m scanning
         last_time = self.last_signal_time.get(symbol)
-        if last_time and (dt - last_time).total_seconds() < cooldown:
-            rem = cooldown - int((dt - last_time).total_seconds())
-            return FilterResult(
-                passed=False,
-                rejection_reason=f"Asset {symbol} is in cooldown ({rem}s remaining)"
-            )
+        if cooldown > 0 and last_time:
+            lt = last_time if last_time.tzinfo else last_time.replace(tzinfo=timezone.utc)
+            # Only trigger cooldown if not in the same 1-minute candle window
+            if (dt - lt).total_seconds() > 0 and (dt - lt).total_seconds() < cooldown and (dt.minute != lt.minute):
+                rem = cooldown - int((dt - lt).total_seconds())
+                return FilterResult(
+                    passed=False,
+                    rejection_reason=f"Asset {symbol} is in cooldown ({rem}s remaining)"
+                )
 
         # 4. Hourly Rate Limiting
         max_per_hour = config.get("signals.max_signals_per_hour", 20)
         timestamps = self.hourly_signal_count.get(symbol, [])
-        recent_timestamps = [t for t in timestamps if (dt - t).total_seconds() < 3600]
+        recent_timestamps = [
+            t for t in timestamps
+            if (dt - (t if t.tzinfo else t.replace(tzinfo=timezone.utc))).total_seconds() < 3600
+        ]
         self.hourly_signal_count[symbol] = recent_timestamps
         if len(recent_timestamps) >= max_per_hour:
             return FilterResult(
@@ -91,7 +101,10 @@ class RiskFilterEngine:
         return FilterResult(passed=True, rejection_reason="")
 
     def record_signal_emitted(self, symbol: str, dt: Optional[datetime] = None) -> None:
-        ts = dt or datetime.utcnow()
+        if dt is not None:
+            ts = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        else:
+            ts = datetime.now(timezone.utc)
         self.last_signal_time[symbol] = ts
         if symbol not in self.hourly_signal_count:
             self.hourly_signal_count[symbol] = []

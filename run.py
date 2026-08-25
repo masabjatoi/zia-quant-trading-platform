@@ -60,14 +60,21 @@ def main():
     debug = bool(config.get("server.debug", False))
     local_ip = get_local_ip()
 
+    import sys
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     print("\n" + "="*68)
-    print(" [ONLINE] ZIA QUANT — SIGNAL INTELLIGENCE & EXECUTION ENGINE")
+    print(" [ONLINE] ZIA QUANT - SIGNAL INTELLIGENCE & EXECUTION ENGINE")
     print("="*68)
-    print(f" 💻 Laptop / PC:    http://localhost:{port} (or http://127.0.0.1:{port})")
-    print(f" 📱 Mobile Phone:   http://{local_ip}:{port} (Connect to same Wi-Fi)")
-    print(f" ⚡ Strategy Units: 6 Quantitative Multi-Timeframe Engines Active")
-    print(f" 🛡️  Risk Engine:   3-Tier Confidence + Regime Viability + Payout Gate")
-    print(f" 📲 PWA Ready:     Open on phone Safari/Chrome -> 'Add to Home Screen'")
+    print(f" [*] Laptop / PC:    http://localhost:{port} (or http://127.0.0.1:{port})")
+    print(f" [*] Mobile Phone:   http://{local_ip}:{port} (Connect to same Wi-Fi)")
+    print(f" [*] Strategy Units: 6 Quantitative Multi-Timeframe Engines Active")
+    print(f" [*] Risk Engine:   3-Tier Confidence + Regime Viability + Payout Gate")
+    print(f" [*] PWA Ready:     Open on phone Safari/Chrome -> 'Add to Home Screen'")
     print("="*68 + "\n")
 
     socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)

@@ -34,6 +34,15 @@ app.config["SECRET_KEY"] = "quotex-intelligence-platform-secret-key"
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
+
+@app.after_request
+def add_cache_busting_headers(response):
+    """Prevents mobile browsers from caching stale API responses and scripts."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 # Initialize database schema
 init_db()
 
