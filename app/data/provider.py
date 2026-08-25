@@ -54,8 +54,16 @@ class YahooDataProvider(MarketDataProvider):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _resolve_ticker(self, symbol: str) -> str:
+        clean = symbol.replace("/", "").replace(" ", "").upper()
+        if clean in self.assets:
+            return self.assets[clean].ticker
         if symbol in self.assets:
             return self.assets[symbol].ticker
+        for k, spec in self.assets.items():
+            if spec.name.upper() == symbol.upper() or spec.ticker.upper() == symbol.upper():
+                return spec.ticker
+        if len(clean) == 6 and not clean.endswith("=X") and not clean.endswith("-USD"):
+            return f"{clean}=X"
         return symbol
 
     def _get_cache_path(self, symbol: str, interval: str) -> Path:
