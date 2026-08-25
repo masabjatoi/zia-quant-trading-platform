@@ -58,7 +58,7 @@ class SchedulerEngine:
 
                 # 3. For any High-Conviction / Viable signal, dispatch alerts and open paper trade
                 for res in results:
-                    if res.signal_decision and res.is_viable and res.evidence_score >= 70:
+                    if res.signal_decision and res.is_viable and res.direction.value in ["CALL", "PUT"] and res.evidence_score >= 55:
                         # Send Telegram alert if configured
                         if self.telegram_dispatcher.is_configured():
                             self.telegram_dispatcher.send_signal(res.signal_decision)

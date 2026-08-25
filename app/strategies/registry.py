@@ -45,4 +45,16 @@ def get_strategy_registry() -> StrategyRegistry:
     global _global_registry
     if _global_registry is None:
         _global_registry = StrategyRegistry()
+        from .trend_strategy import TrendStrategy
+        from .momentum_strategy import MomentumStrategy
+        from .reversal_strategy import ReversalStrategy
+        from .breakout_strategy import BreakoutStrategy
+        from .liquidity_strategy import LiquidityStrategy
+        from .mtf_strategy import MultiTimeframeStrategy
+        _global_registry.register(TrendStrategy())
+        _global_registry.register(MomentumStrategy())
+        _global_registry.register(ReversalStrategy())
+        _global_registry.register(BreakoutStrategy())
+        _global_registry.register(LiquidityStrategy())
+        _global_registry.register(MultiTimeframeStrategy())
     return _global_registry

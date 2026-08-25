@@ -166,7 +166,7 @@ function initSocket() {
 function checkAndAlertNewSignals(results) {
   if (!results) return;
   for (const item of results) {
-    if (item.is_viable && (item.direction === "CALL" || item.direction === "PUT") && item.evidence_score >= 65) {
+    if (item.is_viable && (item.direction === "CALL" || item.direction === "PUT") && item.evidence_score >= 55) {
       const sigKey = `${item.symbol}_${item.direction}_${Math.floor(Date.now() / 60000)}`;
       if (!lastAlertedSignals.has(sigKey)) {
         lastAlertedSignals.add(sigKey);
@@ -217,7 +217,7 @@ async function triggerManualScan() {
       <div class="loading-state">
         <div class="spinner"></div>
         <div style="margin-top: 14px; color: var(--cyan-accent); font-weight: 600;">
-          Scanning currency pairs and liquidity structures across multiple timeframes...
+          Scanning 1-minute closed candles across active currency pairs...
         </div>
       </div>
     `;
@@ -257,8 +257,8 @@ function renderScanner(results) {
         </div>
 
         <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-          <span>Evidence: <strong style="color: ${item.evidence_score >= 70 ? 'var(--call-green)' : 'var(--text-primary)'};">${item.evidence_score}/100</strong></span>
-          ${item.is_viable ? '<span style="color: var(--call-green); font-weight: 600;">✅ Viable Setup</span>' : '<span style="color: var(--text-muted);">Filtered</span>'}
+          <span>Evidence: <strong style="color: ${item.evidence_score >= 60 ? 'var(--call-green)' : 'var(--text-primary)'};">${item.evidence_score}/100</strong></span>
+          ${item.is_viable ? '<span style="color: var(--call-green); font-weight: 600;">✅ 1M Live Signal</span>' : '<span style="color: var(--text-muted);">Consolidation</span>'}
         </div>
 
         <div class="score-bar-container">
@@ -266,7 +266,7 @@ function renderScanner(results) {
         </div>
 
         <div class="card-footer">
-          <span>Expiry: <strong>${item.recommended_expiry / 60}m</strong></span>
+          <span>Expiry: <strong style="color: var(--call-green);">1m (60s)</strong></span>
           <span>Regime: <strong>${item.regime_desc}</strong></span>
         </div>
       </div>
@@ -286,7 +286,7 @@ function openInspectModal(idx) {
   const title = document.getElementById("modal-title");
   const body = document.getElementById("modal-body");
 
-  title.innerHTML = `<span>${item.name}</span> — <strong>${sig.direction} (${sig.strength})</strong>`;
+  title.innerHTML = `<span>${item.name}</span> — <strong>${sig.direction} (${sig.strength}) • 1M Candle</strong>`;
 
   const evidenceRows = (sig.evidence || []).map(e => `
     <div class="evidence-item">
@@ -317,7 +317,7 @@ function openInspectModal(idx) {
 
     <div style="margin-top: 16px; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
       <span>Entry Price: <strong style="color: var(--text-primary); font-family: var(--font-mono);">${sig.entry_price.toFixed(5)}</strong></span>
-      <span>Recommended Expiry: <strong style="color: var(--text-primary);">${sig.recommended_expiry / 60} min</strong></span>
+      <span>Recommended Expiry: <strong style="color: var(--call-green);">1 Minute (60s)</strong></span>
     </div>
   `;
 

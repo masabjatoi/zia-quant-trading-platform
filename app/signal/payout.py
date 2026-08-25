@@ -7,7 +7,7 @@ Prevents taking trades where payout is too low or margin of safety is negative.
 
 from dataclasses import dataclass
 from typing import Tuple
-
+from app.config import config
 
 @dataclass
 class PayoutAnalysis:
@@ -21,8 +21,8 @@ class PayoutAnalysis:
 class PayoutEngine:
     """Computes binary options break-even economics."""
 
-    def __init__(self, default_safety_margin: float = 0.05):
-        self.safety_margin = default_safety_margin
+    def __init__(self, default_safety_margin: Optional[float] = None):
+        self.safety_margin = default_safety_margin if default_safety_margin is not None else float(config.get("signals.min_probability_margin", 0.04))
 
     def evaluate_payout(self, payout_rate: float, estimated_probability: float) -> PayoutAnalysis:
         """

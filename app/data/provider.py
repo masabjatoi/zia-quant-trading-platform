@@ -66,7 +66,7 @@ class YahooDataProvider(MarketDataProvider):
         self,
         symbol: str,
         interval: str = "1m",
-        period: str = "5d",
+        period: str = "2d",
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
@@ -79,13 +79,13 @@ class YahooDataProvider(MarketDataProvider):
                 "progress": False,
                 "auto_adjust": False,
                 "threads": False,
-                "timeout": 12,
+                "timeout": 8,
             }
             if start and end:
                 kwargs["start"] = start
                 kwargs["end"] = end
             else:
-                kwargs["period"] = period
+                kwargs["period"] = period or ("2d" if interval == "1m" else "5d")
 
             df = yf.download(ticker_str, **kwargs)
 
@@ -93,7 +93,7 @@ class YahooDataProvider(MarketDataProvider):
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
 
-                col_map = {c: c.capitalize() for c in df.columns}
+                col_map = {c: str(c).capitalize() for c in df.columns}
                 df = df.rename(columns=col_map)
 
                 needed = ["Open", "High", "Low", "Close"]

@@ -16,7 +16,7 @@ class MultiTimeframeStrategy(BaseStrategy):
     name = "MultiTimeframeAlignment"
     version = "1.0.0"
     description = "Enforces directional alignment across 15M trend, 5M structure, and 1M trigger"
-    target_regimes = ["TRENDING", "BULLISH", "BEARISH"]
+    target_regimes = []
 
     def __init__(self):
         self.structure_engine = MarketStructureEngine()
@@ -60,7 +60,7 @@ class MultiTimeframeStrategy(BaseStrategy):
                 direction=SignalDirection.CALL,
                 confidence=0.84,
                 evidence_items=evidence,
-                suggested_expiry_seconds=300,
+                suggested_expiry_seconds=60,
                 metadata={"htf_bias": "BULLISH"}
             )
 
@@ -77,7 +77,7 @@ class MultiTimeframeStrategy(BaseStrategy):
                 direction=SignalDirection.PUT,
                 confidence=0.84,
                 evidence_items=evidence,
-                suggested_expiry_seconds=300,
+                suggested_expiry_seconds=60,
                 metadata={"htf_bias": "BEARISH"}
             )
 

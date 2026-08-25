@@ -16,7 +16,7 @@ class BreakoutStrategy(BaseStrategy):
     name = "VolatilityBreakout"
     version = "1.0.0"
     description = "Captures strong momentum breakouts through established S/R zones with ATR expansion"
-    target_regimes = ["BREAKOUT", "HIGH_VOLATILITY", "TRENDING"]
+    target_regimes = []
 
     def __init__(self):
         self.sr_engine = SupportResistanceEngine()
@@ -64,7 +64,7 @@ class BreakoutStrategy(BaseStrategy):
                         direction=SignalDirection.CALL,
                         confidence=0.80,
                         evidence_items=evidence,
-                        suggested_expiry_seconds=300,
+                        suggested_expiry_seconds=60,
                         metadata={"broken_level": res.center_price}
                     )
 
@@ -92,7 +92,7 @@ class BreakoutStrategy(BaseStrategy):
                         direction=SignalDirection.PUT,
                         confidence=0.80,
                         evidence_items=evidence,
-                        suggested_expiry_seconds=300,
+                        suggested_expiry_seconds=60,
                         metadata={"broken_level": supp.center_price}
                     )
 

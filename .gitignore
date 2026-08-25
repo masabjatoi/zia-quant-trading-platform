@@ -26,3 +26,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Standalone desktop bot (private)
+premium_signal_bot.py

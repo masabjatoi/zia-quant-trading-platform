@@ -44,23 +44,23 @@ class RiskFilterEngine:
 
         dt = now or datetime.utcnow()
 
-        # 1. Minimum Evidence Score
-        min_score = config.get("signals.min_evidence_score", 65)
+        # 1. Minimum Evidence Score (Calibrated default: 55)
+        min_score = config.get("signals.min_evidence_score", 55)
         if evidence_score < min_score:
             return FilterResult(
                 passed=False,
                 rejection_reason=f"Evidence score {evidence_score} is below minimum threshold of {min_score}"
             )
 
-        # 2. Market Tradability Check (skip dead/frozen markets)
-        if regime.volatility.value == "LOW" and regime.atr_percentile < 10.0:
+        # 2. Market Tradability Check (skip completely frozen zero-spread markets)
+        if regime.volatility.value == "LOW" and regime.atr_percentile < 5.0 and regime.adx_value < 12.0:
             return FilterResult(
                 passed=False,
                 rejection_reason="Market volatility is too low (dormant/spread risk)"
             )
 
-        # 3. Asset Cooldown (Default: 120s between signals on same asset)
-        cooldown = config.get("signals.cooldown_seconds", 120)
+        # 3. Asset Cooldown (Default: 60s between signals on same asset)
+        cooldown = config.get("signals.cooldown_seconds", 60)
         last_time = self.last_signal_time.get(symbol)
         if last_time and (dt - last_time).total_seconds() < cooldown:
             rem = cooldown - int((dt - last_time).total_seconds())
@@ -70,7 +70,7 @@ class RiskFilterEngine:
             )
 
         # 4. Hourly Rate Limiting
-        max_per_hour = config.get("signals.max_signals_per_hour", 12)
+        max_per_hour = config.get("signals.max_signals_per_hour", 20)
         timestamps = self.hourly_signal_count.get(symbol, [])
         recent_timestamps = [t for t in timestamps if (dt - t).total_seconds() < 3600]
         self.hourly_signal_count[symbol] = recent_timestamps

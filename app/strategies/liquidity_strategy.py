@@ -65,7 +65,7 @@ class LiquidityStrategy(BaseStrategy):
                 direction=SignalDirection.CALL,
                 confidence=0.86,
                 evidence_items=evidence,
-                suggested_expiry_seconds=180,
+                suggested_expiry_seconds=60,
                 metadata={"sweep_level": sweep.level, "rejection_strength": sweep.rejection_strength}
             )
 
@@ -92,7 +92,7 @@ class LiquidityStrategy(BaseStrategy):
                 direction=SignalDirection.PUT,
                 confidence=0.86,
                 evidence_items=evidence,
-                suggested_expiry_seconds=180,
+                suggested_expiry_seconds=60,
                 metadata={"sweep_level": sweep.level, "rejection_strength": sweep.rejection_strength}
             )
 

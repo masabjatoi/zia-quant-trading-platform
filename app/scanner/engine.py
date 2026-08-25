@@ -61,7 +61,7 @@ class MarketScannerEngine:
     def _scan_single_asset(self, symbol: str, spec: AssetSpec) -> Optional[ScannedAssetResult]:
         """Scans a single asset through validation, indicators, and signal fusion."""
         try:
-            raw_df = self.provider.get_historical_candles(symbol, interval="1m", period="3d")
+            raw_df = self.provider.get_historical_candles(symbol, interval="1m", period="2d")
             if raw_df is None or raw_df.empty or len(raw_df) < 30:
                 return None
 

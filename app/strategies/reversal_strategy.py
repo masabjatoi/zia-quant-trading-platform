@@ -16,7 +16,7 @@ class ReversalStrategy(BaseStrategy):
     name = "MeanReversion"
     version = "1.0.0"
     description = "Trades mean-reversion bounces off Bollinger Bands & S/R in ranging conditions"
-    target_regimes = ["RANGING", "TRANSITION", "LOW_VOLATILITY", "NORMAL"]
+    target_regimes = []
 
     def __init__(self):
         self.sr_engine = SupportResistanceEngine()
@@ -71,7 +71,7 @@ class ReversalStrategy(BaseStrategy):
                 direction=SignalDirection.CALL,
                 confidence=0.80,
                 evidence_items=evidence,
-                suggested_expiry_seconds=180,
+                suggested_expiry_seconds=60,
                 metadata={"rsi": rsi, "bb_lower": bb_lower}
             )
 
@@ -106,7 +106,7 @@ class ReversalStrategy(BaseStrategy):
                 direction=SignalDirection.PUT,
                 confidence=0.80,
                 evidence_items=evidence,
-                suggested_expiry_seconds=180,
+                suggested_expiry_seconds=60,
                 metadata={"rsi": rsi, "bb_upper": bb_upper}
             )
 
