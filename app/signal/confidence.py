@@ -57,17 +57,22 @@ class ConfidenceEngine:
         total_bullish = sum(min(bullish_scores[k], category_caps[k]) for k in category_caps)
         total_bearish = sum(min(bearish_scores[k], category_caps[k]) for k in category_caps)
 
-        if total_bullish > total_bearish and total_bullish >= 45:
+        # Conflict Penalization: Prevents taking low-quality coin-flip trades during market indecision
+        net_bullish = total_bullish - (total_bearish * 0.60)
+        net_bearish = total_bearish - (total_bullish * 0.60)
+
+        # Clear dominant conviction threshold (net score >= 45 and 1.3x dominance over opposing side)
+        if net_bullish >= 45 and total_bullish >= (total_bearish * 1.3):
             final_dir = SignalDirection.CALL
-            raw_score = min(100, int(total_bullish))
+            raw_score = min(100, max(55, int(net_bullish)))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.CALL]
-        elif total_bearish > total_bullish and total_bearish >= 45:
+        elif net_bearish >= 45 and total_bearish >= (total_bullish * 1.3):
             final_dir = SignalDirection.PUT
-            raw_score = min(100, int(total_bearish))
+            raw_score = min(100, max(55, int(net_bearish)))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.PUT]
         else:
             final_dir = SignalDirection.NO_TRADE
-            raw_score = max(int(total_bullish), int(total_bearish))
+            raw_score = max(int(net_bullish), int(net_bearish), 0)
             relevant_evidence = []
 
         return final_dir, raw_score, relevant_evidence
