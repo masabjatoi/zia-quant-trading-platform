@@ -50,14 +50,28 @@ document.addEventListener("DOMContentLoaded", () => {
 function initClock() {
   function update() {
     const now = new Date();
-    const utcStr = now.toUTCString().split(" ")[4] + " UTC";
+    const utcHours = String(now.getUTCHours()).padStart(2, "0");
+    const utcMins = String(now.getUTCMinutes()).padStart(2, "0");
+    const utcSecs = String(now.getUTCSeconds()).padStart(2, "0");
+    const utcStr = `${utcHours}:${utcMins}:${utcSecs} UTC`;
+    const currentMinuteStr = `${utcHours}:${utcMins} UTC`;
+
     const clockEl = document.getElementById("utc-clock");
     if (clockEl) clockEl.textContent = utcStr;
 
-    // Countdown to next minute boundary
+    // Countdown to next 1-minute candle close
     const secondsLeft = 60 - now.getUTCSeconds();
     const cdEl = document.getElementById("countdown-timer");
     if (cdEl) cdEl.textContent = `${secondsLeft}s`;
+
+    // Real-time update across all 1M candle countdown pills
+    document.querySelectorAll(".live-candle-timer").forEach(el => {
+      el.textContent = `${secondsLeft}s`;
+    });
+
+    document.querySelectorAll(".live-current-minute").forEach(el => {
+      el.textContent = currentMinuteStr;
+    });
   }
   update();
   setInterval(update, 1000);
@@ -238,6 +252,12 @@ function renderScanner(results) {
   const assetCountEl = document.getElementById("asset-count");
   if (assetCountEl) assetCountEl.textContent = results.length;
 
+  const now = new Date();
+  const utcHours = String(now.getUTCHours()).padStart(2, "0");
+  const utcMins = String(now.getUTCMinutes()).padStart(2, "0");
+  const currentMinuteStr = `${utcHours}:${utcMins} UTC`;
+  const secondsLeft = 60 - now.getUTCSeconds();
+
   container.innerHTML = results.map((item, idx) => {
     const isCall = item.direction === "CALL";
     const isPut = item.direction === "PUT";
@@ -256,9 +276,15 @@ function renderScanner(results) {
           <div class="signal-badge ${badgeClass}">${item.direction} ${isCall ? '▲' : (isPut ? '▼' : '—')}</div>
         </div>
 
+        <!-- 1-Minute Candle Timing & Live Expiry Timer Pill -->
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem;">
+          <span style="color: var(--text-secondary);">🕐 1M Bar: <strong class="live-current-minute" style="color: var(--cyan-accent); font-family: var(--font-mono);">${currentMinuteStr}</strong></span>
+          <span style="color: ${item.is_viable ? 'var(--call-green)' : 'var(--gold-accent)'}; font-weight: 700; font-family: var(--font-mono);">⏳ <span class="live-candle-timer">${secondsLeft}s</span> left</span>
+        </div>
+
         <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
           <span>Evidence: <strong style="color: ${item.evidence_score >= 60 ? 'var(--call-green)' : 'var(--text-primary)'};">${item.evidence_score}/100</strong></span>
-          ${item.is_viable ? '<span style="color: var(--call-green); font-weight: 600;">✅ 1M Live Signal</span>' : '<span style="color: var(--text-muted);">Consolidation</span>'}
+          ${item.is_viable ? '<span style="color: var(--call-green); font-weight: 600;">✅ Active 1M Trade</span>' : '<span style="color: var(--text-muted);">Consolidation</span>'}
         </div>
 
         <div class="score-bar-container">
@@ -286,7 +312,14 @@ function openInspectModal(idx) {
   const title = document.getElementById("modal-title");
   const body = document.getElementById("modal-body");
 
-  title.innerHTML = `<span>${item.name}</span> — <strong>${sig.direction} (${sig.strength}) • 1M Candle</strong>`;
+  const now = new Date();
+  const utcHours = String(now.getUTCHours()).padStart(2, "0");
+  const utcMins = String(now.getUTCMinutes()).padStart(2, "0");
+  const nextMin = String((now.getUTCMinutes() + 1) % 60).padStart(2, "0");
+  const nextHour = String(now.getUTCMinutes() === 59 ? (now.getUTCHours() + 1) % 24 : now.getUTCHours()).padStart(2, "0");
+  const secondsLeft = 60 - now.getUTCSeconds();
+
+  title.innerHTML = `<span>${item.name}</span> — <strong>${sig.direction} (${sig.strength}) • 1-Minute Candle</strong>`;
 
   const evidenceRows = (sig.evidence || []).map(e => `
     <div class="evidence-item">
@@ -299,25 +332,41 @@ function openInspectModal(idx) {
   `).join("");
 
   body.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-      <div style="background: rgba(0,0,0,0.35); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+      <div style="background: rgba(0,0,0,0.35); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color);">
         <div style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">EVIDENCE SCORE</div>
         <div style="font-size: 1.5rem; font-weight: 800; color: var(--call-green);">${sig.evidence_score}/100</div>
       </div>
-      <div style="background: rgba(0,0,0,0.35); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color);">
+      <div style="background: rgba(0,0,0,0.35); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color);">
         <div style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">BREAK-EVEN WINRATE</div>
         <div style="font-size: 1.5rem; font-weight: 800; color: var(--gold-accent);">${Math.round(sig.breakeven_probability * 100)}%</div>
       </div>
     </div>
 
+    <!-- 1-Minute Candle Window & Countdown Row -->
+    <div style="background: rgba(0,230,153,0.06); border: 1px solid rgba(0,230,153,0.25); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">1M Candle Execution Window</div>
+        <div style="font-size: 0.95rem; font-weight: 700; color: var(--cyan-accent); font-family: var(--font-mono);">
+          ${utcHours}:${utcMins}:00 UTC ➔ ${nextHour}:${nextMin}:00 UTC
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Candle Closes In</div>
+        <div style="font-size: 1.3rem; font-weight: 800; color: var(--gold-accent); font-family: var(--font-mono);">
+          <span class="live-candle-timer">${secondsLeft}s</span>
+        </div>
+      </div>
+    </div>
+
     <h4 style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; font-weight: 700;">CONVICTION AUDIT REASONS</h4>
     <div class="evidence-list">
-      ${evidenceRows || '<div style="color: var(--text-muted); padding: 10px;">No directional trigger active for this bar.</div>'}
+      ${evidenceRows || '<div style="color: var(--text-muted); padding: 10px;">Market in consolidation — no directional confluence.</div>'}
     </div>
 
     <div style="margin-top: 16px; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
       <span>Entry Price: <strong style="color: var(--text-primary); font-family: var(--font-mono);">${sig.entry_price.toFixed(5)}</strong></span>
-      <span>Recommended Expiry: <strong style="color: var(--call-green);">1 Minute (60s)</strong></span>
+      <span>Duration: <strong style="color: var(--call-green);">Exact 1-Minute Candle (60s)</strong></span>
     </div>
   `;
 
