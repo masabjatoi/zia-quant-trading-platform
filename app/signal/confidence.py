@@ -57,11 +57,11 @@ class ConfidenceEngine:
         total_bullish = sum(min(bullish_scores[k], category_caps[k]) for k in category_caps)
         total_bearish = sum(min(bearish_scores[k], category_caps[k]) for k in category_caps)
 
-        if total_bullish > total_bearish and total_bullish >= 50:
+        if total_bullish > total_bearish and total_bullish >= 45:
             final_dir = SignalDirection.CALL
             raw_score = min(100, int(total_bullish))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.CALL]
-        elif total_bearish > total_bullish and total_bearish >= 50:
+        elif total_bearish > total_bullish and total_bearish >= 45:
             final_dir = SignalDirection.PUT
             raw_score = min(100, int(total_bearish))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.PUT]

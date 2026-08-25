@@ -37,7 +37,7 @@ class TrendStrategy(BaseStrategy):
         evidence = []
 
         # 1. Bullish Trend Setup (CALL)
-        if (ema_bull or ema_9 > ema_21) and struct.trend.value in ["BULLISH", "NEUTRAL"]:
+        if (ema_bull or ema_9 > ema_21) and struct.trend.value in ["BULLISH", "NEUTRAL", "TRANSITION"]:
             if close_price >= (ema_21 * 0.9990):
                 evidence.append(EvidenceItem(
                     engine="trend",
@@ -53,6 +53,14 @@ class TrendStrategy(BaseStrategy):
                     weight=15.0,
                     confidence=0.80
                 ))
+                if ctx.candles[-1].close > ctx.candles[-1].open:
+                    evidence.append(EvidenceItem(
+                        engine="price_action",
+                        description="1M Bullish Candle Confirmation",
+                        direction=SignalDirection.CALL,
+                        weight=10.0,
+                        confidence=0.82
+                    ))
                 return StrategySignalResult(
                     strategy_name=self.name,
                     direction=SignalDirection.CALL,
@@ -63,7 +71,7 @@ class TrendStrategy(BaseStrategy):
                 )
 
         # 2. Bearish Trend Setup (PUT)
-        if (ema_bear or ema_9 < ema_21) and struct.trend.value in ["BEARISH", "NEUTRAL"]:
+        if (ema_bear or ema_9 < ema_21) and struct.trend.value in ["BEARISH", "NEUTRAL", "TRANSITION"]:
             if close_price <= (ema_21 * 1.0010):
                 evidence.append(EvidenceItem(
                     engine="trend",
@@ -79,6 +87,14 @@ class TrendStrategy(BaseStrategy):
                     weight=15.0,
                     confidence=0.80
                 ))
+                if ctx.candles[-1].close < ctx.candles[-1].open:
+                    evidence.append(EvidenceItem(
+                        engine="price_action",
+                        description="1M Bearish Candle Confirmation",
+                        direction=SignalDirection.PUT,
+                        weight=10.0,
+                        confidence=0.82
+                    ))
                 return StrategySignalResult(
                     strategy_name=self.name,
                     direction=SignalDirection.PUT,
