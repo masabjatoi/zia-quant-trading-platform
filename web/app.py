@@ -43,8 +43,26 @@ def add_cache_busting_headers(response):
     response.headers["Expires"] = "0"
     return response
 
+from app.strategies.registry import get_strategy_registry
+from app.strategies.trend_strategy import TrendStrategy
+from app.strategies.momentum_strategy import MomentumStrategy
+from app.strategies.reversal_strategy import ReversalStrategy
+from app.strategies.breakout_strategy import BreakoutStrategy
+from app.strategies.liquidity_strategy import LiquidityStrategy
+from app.strategies.mtf_strategy import MultiTimeframeStrategy
+
 # Initialize database schema
 init_db()
+
+# Auto-register strategy engines if not already registered
+strategy_reg = get_strategy_registry()
+if len(strategy_reg.get_all()) == 0:
+    strategy_reg.register(TrendStrategy())
+    strategy_reg.register(MomentumStrategy())
+    strategy_reg.register(ReversalStrategy())
+    strategy_reg.register(BreakoutStrategy())
+    strategy_reg.register(LiquidityStrategy())
+    strategy_reg.register(MultiTimeframeStrategy())
 
 # Services
 scanner = MarketScannerEngine()
