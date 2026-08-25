@@ -40,6 +40,14 @@ class LiquidityStrategy(BaseStrategy):
         close_price = ctx.candles[-1].close
         supp, res = self.sr_engine.find_nearest_zones(close_price, zones)
 
+        current_candle = ctx.candles[-1]
+        atr = 0.0005
+        if not ctx.df_enriched.empty and "atr" in ctx.df_enriched.columns:
+            atr = float(ctx.df_enriched.iloc[-1].get("atr", 0.0005))
+        rvol = 1.0
+        if not ctx.df_enriched.empty and "rvol" in ctx.df_enriched.columns:
+            rvol = float(ctx.df_enriched.iloc[-1].get("rvol", 1.0))
+
         evidence = []
 
         # 1. Sell-Side Liquidity Sweep -> Reversal CALL
@@ -60,13 +68,24 @@ class LiquidityStrategy(BaseStrategy):
                     confidence=0.85
                 ))
 
+            invalidation = current_candle.low - (atr * 0.5)
+            target = res.center_price if (res and res.center_price > close_price) else (close_price + atr * 2.0)
+            rr_ratio = abs(target - close_price) / max(abs(close_price - invalidation), 1e-9)
+
             return StrategySignalResult(
                 strategy_name=self.name,
                 direction=SignalDirection.CALL,
                 confidence=0.86,
                 evidence_items=evidence,
                 suggested_expiry_seconds=60,
-                metadata={"sweep_level": sweep.level, "rejection_strength": sweep.rejection_strength}
+                metadata={
+                    "sweep_level": sweep.level,
+                    "rejection_strength": sweep.rejection_strength,
+                    "invalidation_price": invalidation,
+                    "target_price": target,
+                    "risk_reward_ratio": rr_ratio,
+                    "rvol": rvol
+                }
             )
 
         # 2. Buy-Side Liquidity Sweep -> Reversal PUT
@@ -87,13 +106,24 @@ class LiquidityStrategy(BaseStrategy):
                     confidence=0.85
                 ))
 
+            invalidation = current_candle.high + (atr * 0.5)
+            target = supp.center_price if (supp and supp.center_price < close_price) else (close_price - atr * 2.0)
+            rr_ratio = abs(close_price - target) / max(abs(invalidation - close_price), 1e-9)
+
             return StrategySignalResult(
                 strategy_name=self.name,
                 direction=SignalDirection.PUT,
                 confidence=0.86,
                 evidence_items=evidence,
                 suggested_expiry_seconds=60,
-                metadata={"sweep_level": sweep.level, "rejection_strength": sweep.rejection_strength}
+                metadata={
+                    "sweep_level": sweep.level,
+                    "rejection_strength": sweep.rejection_strength,
+                    "invalidation_price": invalidation,
+                    "target_price": target,
+                    "risk_reward_ratio": rr_ratio,
+                    "rvol": rvol
+                }
             )
 
         return None

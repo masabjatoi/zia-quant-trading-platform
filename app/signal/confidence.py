@@ -24,12 +24,16 @@ class ConfidenceEngine:
     def __init__(self):
         self.payout_engine = PayoutEngine()
 
-    def calculate_evidence_score(self, evidence_items: List[EvidenceItem]) -> Tuple[SignalDirection, int, List[EvidenceItem]]:
+    def calculate_evidence_score(
+        self,
+        evidence_items: List[EvidenceItem],
+        regime: Optional[MultiAttributeRegime] = None
+    ) -> Tuple[SignalDirection, int, List[EvidenceItem]]:
         if not evidence_items:
             return SignalDirection.NO_TRADE, 0, []
 
         # Categorize evidence to prevent correlated indicator inflation
-        # Category Max Allowable Weight Cap
+        # Category Base Max Allowable Weight Cap
         category_caps = {
             "trend": 30.0,
             "momentum": 25.0,
@@ -39,6 +43,17 @@ class ConfidenceEngine:
             "mtf": 20.0,
             "liquidity": 25.0,
         }
+
+        # Dynamic Regime Weight Adaptation: Boost relevant categories based on market state
+        if regime is not None:
+            if regime.structure.value == "RANGING" or regime.volatility.value == "LOW":
+                category_caps["zone"] = 28.0
+                category_caps["liquidity"] = 30.0
+                category_caps["trend"] = 15.0
+            elif regime.structure.value in ["TRENDING", "BREAKOUT"] or regime.adx_value >= 25.0:
+                category_caps["trend"] = 35.0
+                category_caps["momentum"] = 30.0
+                category_caps["structure"] = 30.0
 
         bullish_scores: dict[str, float] = {k: 0.0 for k in category_caps}
         bearish_scores: dict[str, float] = {k: 0.0 for k in category_caps}

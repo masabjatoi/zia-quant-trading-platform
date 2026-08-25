@@ -46,6 +46,8 @@ class BaseStrategy(ABC):
     version: str = "1.0.0"
     description: str = ""
     target_regimes: List[str] = []
+    prohibited_regimes: List[str] = []
+    min_adx: float = 0.0
 
     @abstractmethod
     def evaluate(self, ctx: StrategyContext) -> Optional[StrategySignalResult]:
@@ -57,6 +59,19 @@ class BaseStrategy(ABC):
 
     def is_regime_compatible(self, regime: MultiAttributeRegime) -> bool:
         """Checks if current market regime permits this strategy to run."""
-        if not self.target_regimes:
-            return True
-        return regime.structure.value in self.target_regimes or regime.trend.value in self.target_regimes
+        # 1. ADX Floor Check
+        if self.min_adx > 0.0 and regime.adx_value < self.min_adx:
+            return False
+
+        # 2. Prohibited Regimes Gating (e.g. no Trend in RANGING markets)
+        if self.prohibited_regimes:
+            if regime.structure.value in self.prohibited_regimes:
+                return False
+            if regime.trend.value in self.prohibited_regimes:
+                return False
+
+        # 3. Target Regimes Filter (if specified)
+        if self.target_regimes:
+            return regime.structure.value in self.target_regimes or regime.trend.value in self.target_regimes
+
+        return True

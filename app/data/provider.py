@@ -200,5 +200,16 @@ class YahooDataProvider(MarketDataProvider):
         return None
 
 
-def get_data_provider() -> MarketDataProvider:
-    return YahooDataProvider()
+_global_provider: Optional[MarketDataProvider] = None
+
+
+def get_data_provider(use_streaming: bool = True) -> MarketDataProvider:
+    global _global_provider
+    if _global_provider is None:
+        if use_streaming:
+            from .streaming import StreamingDataProvider
+            _global_provider = StreamingDataProvider(fallback_provider=YahooDataProvider())
+        else:
+            _global_provider = YahooDataProvider()
+    return _global_provider
+

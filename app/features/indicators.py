@@ -20,6 +20,7 @@ from ta.momentum import RSIIndicator, StochasticOscillator, WilliamsRIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
 
 from app.config import config
+from .volume import VolumeEngine
 
 
 @dataclass
@@ -54,6 +55,11 @@ class IndicatorSnapshot:
     adx: float
     plus_di: float
     minus_di: float
+    # Volume & RVOL
+    rvol: float = 1.0
+    volume_zscore: float = 0.0
+    is_volume_spike: bool = False
+    is_volume_expansion: bool = False
 
 
 class IndicatorEngine:
@@ -61,6 +67,7 @@ class IndicatorEngine:
 
     def __init__(self, cfg=None):
         self.cfg = cfg or config
+        self.volume_engine = VolumeEngine()
 
     def calculate_all(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -122,6 +129,9 @@ class IndicatorEngine:
         res["plus_di"] = adx_ind.adx_pos()
         res["minus_di"] = adx_ind.adx_neg()
 
+        # --- 5. Volume & RVOL Features ---
+        res = self.volume_engine.compute_volume_features(res)
+
         return res
 
     def get_latest_snapshot(self, df_enriched: pd.DataFrame) -> Optional[IndicatorSnapshot]:
@@ -159,4 +169,8 @@ class IndicatorEngine:
             adx=float(row.get("adx", 0.0)),
             plus_di=float(row.get("plus_di", 0.0)),
             minus_di=float(row.get("minus_di", 0.0)),
+            rvol=float(row.get("rvol", 1.0)),
+            volume_zscore=float(row.get("volume_zscore", 0.0)),
+            is_volume_spike=bool(row.get("is_volume_spike", False)),
+            is_volume_expansion=bool(row.get("is_volume_expansion", False)),
         )

@@ -35,8 +35,8 @@ class BinaryBacktester:
 
     def __init__(
         self,
-        execution_lag_seconds: int = 3,
-        spread_pips: float = 1.0,
+        execution_lag_seconds: int = 2,
+        spread_pips: float = 0.0,
         pip_size: float = 0.0001,
         payout_rate: float = 0.85,
         default_stake: float = 10.0,
@@ -57,7 +57,7 @@ class BinaryBacktester:
         df: pd.DataFrame,
         symbol: str = "EUR/USD",
         timeframe: str = "1m",
-        expiry_seconds: int = 300,
+        expiry_seconds: int = 60,
         warmup_candles: int = 40,
     ) -> BacktestReport:
         if df.empty or len(df) < (warmup_candles + 20):
@@ -97,8 +97,9 @@ class BinaryBacktester:
             )
             all_candles.append(c)
 
-        # Step size in seconds per candle (e.g. 60s for 1m)
-        candle_seconds = 60 if timeframe == "1m" else 300
+        # Step size in seconds per candle (e.g. 60s for 1m, 300s for 5m, 900s for 15m)
+        candle_seconds_map = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600}
+        candle_seconds = candle_seconds_map.get(timeframe, 60)
         bars_for_expiry = max(1, expiry_seconds // candle_seconds)
 
         trades: List[BacktestTrade] = []
@@ -116,20 +117,23 @@ class BinaryBacktester:
             if "is_session_gap" in current_df_slice.columns and current_df_slice["is_session_gap"].iloc[-1]:
                 continue
 
-            # Run signal fusion strictly causally
+            # Run signal fusion strictly causally with active timeframe profile
             decision = self.fusion_engine.process(
                 symbol=symbol,
                 candles_1m=current_slice_candles,
                 df_1m=current_df_slice,
                 payout_rate=self.payout,
-                now=sig_time
+                now=sig_time,
+                timeframe=timeframe
             )
 
             if decision.direction == SignalDirection.NO_TRADE:
                 continue
 
-            # Target expiry candle index
-            target_idx = i + bars_for_expiry
+            # Target expiry candle index (dynamic to 1m / 60s signal recommended expiry)
+            trade_expiry = decision.recommended_expiry if decision.recommended_expiry else expiry_seconds
+            bars_for_trade = max(1, trade_expiry // candle_seconds)
+            target_idx = i + bars_for_trade
             if target_idx >= total_n:
                 break
 
@@ -138,7 +142,7 @@ class BinaryBacktester:
 
             # Check if expiry falls across a weekend / market gap
             time_gap = (expiry_time - sig_time).total_seconds()
-            if time_gap > (expiry_seconds + 300):
+            if time_gap > (trade_expiry + 300):
                 continue  # Discard trade bridging weekend gap
 
             # Realistic Entry Execution with Lag & Spread

@@ -100,12 +100,50 @@ class ConfigManager:
         return self.get("timeframes.confirmation", ["5m", "15m"])
 
     @property
+    def supported_timeframes(self) -> List[str]:
+        return self.get("timeframes.supported", ["1m", "5m", "15m"])
+
+    def get_timeframe_profile(self, timeframe: str = "1m") -> Dict[str, Any]:
+        profiles = self.get("timeframes.profiles", {})
+        if timeframe in profiles:
+            return profiles[timeframe]
+        
+        # Fallback profile defaults
+        fallback_map = {
+            "1m": {
+                "candle_interval": "1m",
+                "expiry_seconds": 60,
+                "htf_confirmations": ["5m", "15m"],
+                "cooldown_seconds": 180,
+                "min_evidence_score": 70,
+                "min_atr_percentile": 15.0
+            },
+            "5m": {
+                "candle_interval": "5m",
+                "expiry_seconds": 300,
+                "htf_confirmations": ["15m", "1h"],
+                "cooldown_seconds": 600,
+                "min_evidence_score": 70,
+                "min_atr_percentile": 10.0
+            },
+            "15m": {
+                "candle_interval": "15m",
+                "expiry_seconds": 900,
+                "htf_confirmations": ["1h", "4h"],
+                "cooldown_seconds": 1800,
+                "min_evidence_score": 70,
+                "min_atr_percentile": 5.0
+            }
+        }
+        return fallback_map.get(timeframe, fallback_map["1m"])
+
+    @property
     def expiries(self) -> List[int]:
-        return self.get("expiries.durations", [60, 180, 300])
+        return self.get("expiries.durations", [60, 300, 900])
 
     @property
     def default_expiry(self) -> int:
-        return self.get("expiries.default", 300)
+        return self.get("expiries.default", 60)
 
     @property
     def db_url(self) -> str:

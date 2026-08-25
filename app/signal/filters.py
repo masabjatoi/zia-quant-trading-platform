@@ -38,6 +38,7 @@ class RiskFilterEngine:
         evidence_score: int,
         regime: MultiAttributeRegime,
         now: Optional[datetime] = None,
+        timeframe: str = "1m",
     ) -> FilterResult:
         if direction == SignalDirection.NO_TRADE:
             return FilterResult(passed=False, rejection_reason="Direction is NO_TRADE")
@@ -47,33 +48,37 @@ class RiskFilterEngine:
         else:
             dt = datetime.now(timezone.utc)
 
-        # 1. Minimum Evidence Score (Calibrated default: 55)
-        min_score = config.get("signals.min_evidence_score", 55)
+        # Get timeframe-specific profile
+        profile = config.get_timeframe_profile(timeframe)
+
+        # 1. Minimum Evidence Score (Calibrated institutional threshold: 70)
+        min_score = profile.get("min_evidence_score", config.get("signals.min_evidence_score", 70))
         if evidence_score < min_score:
             return FilterResult(
                 passed=False,
                 rejection_reason=f"Evidence score {evidence_score} is below minimum threshold of {min_score}"
             )
 
-        # 2. Market Tradability Check (skip completely frozen zero-spread markets)
-        if regime.volatility.value == "LOW" and regime.atr_percentile < 5.0 and regime.adx_value < 12.0:
+        # 2. Market Tradability & ATR Floor Check (skip dead/dormant markets)
+        min_atr = profile.get("min_atr_percentile", 10.0)
+        if regime.volatility.value == "LOW" and (regime.atr_percentile < min_atr or regime.adx_value < 12.0):
             return FilterResult(
                 passed=False,
-                rejection_reason="Market volatility is too low (dormant/spread risk)"
+                rejection_reason=f"Market volatility is too low (ATR percentile {regime.atr_percentile:.1f}% < {min_atr:.1f}%)"
             )
 
-        # 3. Asset Cooldown Check
-        # Prevents taking back-to-back trades across different cycles, but preserves the signal during the active 1-minute candle
-        cooldown = config.get("signals.cooldown_seconds", 0)  # Set to 0 for continuous 1m scanning
+        # 3. Wavefront Anti-Cluster Cooldown Check
+        # Prevents cluster losses by requiring a pause after a signal before taking another on the same asset
+        cooldown = profile.get("cooldown_seconds", config.get("signals.cooldown_seconds", 180))
         last_time = self.last_signal_time.get(symbol)
         if cooldown > 0 and last_time:
             lt = last_time if last_time.tzinfo else last_time.replace(tzinfo=timezone.utc)
-            # Only trigger cooldown if not in the same 1-minute candle window
-            if (dt - lt).total_seconds() > 0 and (dt - lt).total_seconds() < cooldown and (dt.minute != lt.minute):
-                rem = cooldown - int((dt - lt).total_seconds())
+            elapsed_sec = (dt - lt).total_seconds()
+            if 0 < elapsed_sec < cooldown:
+                rem = cooldown - int(elapsed_sec)
                 return FilterResult(
                     passed=False,
-                    rejection_reason=f"Asset {symbol} is in cooldown ({rem}s remaining)"
+                    rejection_reason=f"Asset {symbol} is in wavefront cooldown ({rem}s remaining)"
                 )
 
         # 4. Hourly Rate Limiting
@@ -99,6 +104,9 @@ class RiskFilterEngine:
             )
 
         return FilterResult(passed=True, rejection_reason="")
+
+    def record_signal(self, symbol: str, now: Optional[datetime] = None) -> None:
+        self.record_signal_emitted(symbol=symbol, dt=now)
 
     def record_signal_emitted(self, symbol: str, dt: Optional[datetime] = None) -> None:
         if dt is not None:

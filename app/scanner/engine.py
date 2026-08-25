@@ -58,27 +58,42 @@ class MarketScannerEngine:
             ))
         return candles
 
-    def _scan_single_asset(self, symbol: str, spec: AssetSpec) -> Optional[ScannedAssetResult]:
-        """Scans a single asset through validation, indicators, and signal fusion."""
+    def _scan_single_asset(self, symbol: str, spec: AssetSpec, timeframe: str = "1m") -> Optional[ScannedAssetResult]:
+        """Scans a single asset through validation, indicators, and signal fusion on specified timeframe."""
         try:
-            raw_df = self.provider.get_historical_candles(symbol, interval="1m", period="2d")
+            profile = config.get_timeframe_profile(timeframe)
+            raw_df = self.provider.get_historical_candles(symbol, interval=timeframe, period="5d")
             if raw_df is None or raw_df.empty or len(raw_df) < 30:
                 return None
 
-            clean_df, report = self.validator.validate_and_clean(raw_df, symbol=symbol, interval="1m")
+            clean_df, report = self.validator.validate_and_clean(raw_df, symbol=symbol, interval=timeframe)
             if not report.is_acceptable_for_trading:
                 return None
 
-            candles = self._df_to_candles(clean_df, symbol=symbol, interval="1m", max_count=150)
+            candles = self._df_to_candles(clean_df, symbol=symbol, interval=timeframe, max_count=150)
             if len(candles) < 30:
                 return None
+
+            # Fetch Higher Timeframe confirmations
+            extra_htf: Dict[str, List[Candle]] = {}
+            for htf in profile.get("htf_confirmations", []):
+                try:
+                    htf_df = self.provider.get_historical_candles(symbol, interval=htf, period="5d")
+                    if htf_df is not None and not htf_df.empty:
+                        clean_htf, _ = self.validator.validate_and_clean(htf_df, symbol=symbol, interval=htf)
+                        if not clean_htf.empty:
+                            extra_htf[htf] = self._df_to_candles(clean_htf, symbol=symbol, interval=htf, max_count=50)
+                except Exception:
+                    pass
 
             decision = self.fusion_engine.process(
                 symbol=symbol,
                 candles_1m=candles,
                 df_1m=clean_df,
                 payout_rate=spec.payout,
-                now=datetime.now(timezone.utc)
+                extra_htf_candles=extra_htf,
+                now=datetime.now(timezone.utc),
+                timeframe=timeframe
             )
 
             curr_price = candles[-1].close
@@ -102,14 +117,14 @@ class MarketScannerEngine:
         except Exception:
             return None
 
-    def scan_all_assets(self) -> List[ScannedAssetResult]:
-        """Scans all configured assets in parallel with thread pool."""
+    def scan_all_assets(self, timeframe: str = "1m") -> List[ScannedAssetResult]:
+        """Scans all configured assets in parallel for the given execution timeframe."""
         results: List[ScannedAssetResult] = []
         assets = config.assets
 
         with ThreadPoolExecutor(max_workers=min(len(assets), 6)) as executor:
             futures = {
-                executor.submit(self._scan_single_asset, symbol, spec): symbol
+                executor.submit(self._scan_single_asset, symbol, spec, timeframe): symbol
                 for symbol, spec in assets.items()
             }
             for future in as_completed(futures):

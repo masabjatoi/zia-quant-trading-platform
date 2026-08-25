@@ -163,9 +163,15 @@ class SignalDecision:
     required_probability: float = 0.5905
     is_economically_viable: bool = False
 
-    # Execution Parameters
+    # Execution & Risk Parameters
     recommended_expiry: int = 300  # seconds
     entry_price: float = 0.0
+    invalidation_price: Optional[float] = None  # Structural stop loss / invalidation level
+    target_price: Optional[float] = None        # Take-profit / next liquidity level
+    risk_reward_ratio: Optional[float] = None   # Expected R:R ratio
+    rvol: float = 1.0                           # Relative Volume (vs 20-period SMA)
+    volume_profile_poc: Optional[float] = None  # Session Point of Control
+    regime_alignment: float = 1.0               # Regime suitability multiplier (0.0 to 1.5)
     regime: MultiAttributeRegime = field(default_factory=MultiAttributeRegime)
     strategies_fired: List[str] = field(default_factory=list)
 
@@ -196,6 +202,12 @@ class SignalDecision:
             "is_economically_viable": self.is_economically_viable,
             "recommended_expiry": self.recommended_expiry,
             "entry_price": self.entry_price,
+            "invalidation_price": round(self.invalidation_price, 5) if self.invalidation_price is not None else None,
+            "target_price": round(self.target_price, 5) if self.target_price is not None else None,
+            "risk_reward_ratio": round(self.risk_reward_ratio, 2) if self.risk_reward_ratio is not None else None,
+            "rvol": round(self.rvol, 2),
+            "volume_profile_poc": round(self.volume_profile_poc, 5) if self.volume_profile_poc is not None else None,
+            "regime_alignment": round(self.regime_alignment, 2),
             "regime": self.regime.to_dict(),
             "strategies_fired": self.strategies_fired,
             "evidence": [
