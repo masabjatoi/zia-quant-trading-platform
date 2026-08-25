@@ -160,13 +160,13 @@ def generate_pdf():
         ],
         [
             Paragraph("<b>🕒 UTC Clock</b>", h2_style),
-            Paragraph("Current Coordinated Universal Time (e.g. <code>14:30:00 UTC</code>).", body_style),
+            Paragraph("Current Coordinated Universal Time (e.g. <code>13:30:00 UTC</code>).", body_style),
             Paragraph("Quotex runs on UTC time. Use this to trade peak volume sessions (London 07:00–16:00 UTC & New York 12:00–21:00 UTC).", body_style)
         ],
         [
-            Paragraph("<b>⏳ Next Scan Countdown</b>", h2_style),
+            Paragraph("<b>⏳ 1M Candle Timer</b>", h2_style),
             Paragraph("Counts down from <b>60s to 0s</b> in real-time.", body_style),
-            Paragraph("<b>Crucial for entry timing!</b> When timer hits <code>0s</code>, a new 1-minute candle opens. Enter trades right at the candle open for the sharpest price.", body_style)
+            Paragraph("<b>Crucial for entry timing!</b> When the timer resets to <code>60s</code>, a fresh 1-minute candle begins. Enter trades at the open for the sharpest price.", body_style)
         ],
         [
             Paragraph("<b>🟢 Live Feed Pulse</b>", h2_style),
@@ -174,9 +174,9 @@ def generate_pdf():
             Paragraph("Confirms your dashboard is actively receiving live data updates over real-time WebSockets.", body_style)
         ],
         [
-            Paragraph("<b>⚡ Instant Scan Button</b>", h2_style),
-            Paragraph("Green button at top-right of cards.", body_style),
-            Paragraph("Forces an immediate scan across all 10 assets on-demand without waiting for the 60-second clock.", body_style)
+            Paragraph("<b>📱 Phone Connect</b>", h2_style),
+            Paragraph("Connect Phone button in top bar.", body_style),
+            Paragraph("Opens the instant QR pairing modal to stream live 1-minute signals to your mobile Safari / Chrome on Wi-Fi with anti-cache sync.", body_style)
         ]
     ]
 
@@ -194,8 +194,8 @@ def generate_pdf():
     elements.append(Spacer(1, 4))
 
     # SECTION 3: READING SCANNER CARDS
-    elements.append(Paragraph("3. Tab 1: Live Scanner (Opportunity Heatmap)", h1_style))
-    elements.append(Paragraph("The main screen monitors 10 assets. Here is what every part of an asset card indicates:", body_style))
+    elements.append(Paragraph("3. Tab 1: Live 1-Minute Scanner (Opportunity Heatmap)", h1_style))
+    elements.append(Paragraph("The main screen monitors 10 assets with 1-minute candle precision:", body_style))
 
     card_data = [
         [
@@ -211,32 +211,27 @@ def generate_pdf():
         [
             Paragraph("<b>Signal Badge</b>", h2_style),
             Paragraph("🟢 <code>CALL ▲</code> (Green)<br/>🔴 <code>PUT ▼</code> (Red)<br/>⚪ <code>NO_TRADE —</code> (Grey)", body_style),
-            Paragraph("<b>GREEN:</b> Open Quotex, select pair, click UP/CALL.<br/><b>RED:</b> Open Quotex, select pair, click DOWN/PUT.<br/><b>GREY:</b> No edge. Protect capital. Sit on hands.", body_style)
+            Paragraph("<b>GREEN:</b> Open Quotex, select pair, click UP/CALL.<br/><b>RED:</b> Open Quotex, select pair, click DOWN/PUT.<br/><b>GREY:</b> Market in consolidation / chop. Capital protected.", body_style)
         ],
         [
-            Paragraph("<b>Price Box</b>", h2_style),
-            Paragraph("<code>1.08450</code>", body_style),
-            Paragraph("Live spot price at the moment the signal was calculated.", body_style)
+            Paragraph("<b>1M Candle Timing Bar</b>", h2_style),
+            Paragraph("<code>🕐 1M Bar: 13:30 UTC<br/>⏳ 42s left</code>", body_style),
+            Paragraph("Displays the exact active 1-minute candle window and real-time ticking countdown to trade expiry.", body_style)
         ],
         [
             Paragraph("<b>Evidence Score</b>", h2_style),
-            Paragraph("<code>78 / 100</code> (Green bar)", body_style),
-            Paragraph("Mathematical confidence from all 6 engines combined. <b>Only execute trades when score is &ge; 70.</b>", body_style)
+            Paragraph("<code>77 / 100</code> (Green bar)", body_style),
+            Paragraph("Mathematical proof from all 6 engines. <b>55–74: Moderate, 75–90+: Strong Confluence.</b> Includes conflict penalization to prevent chop trades.", body_style)
         ],
         [
-            Paragraph("<b>Recommended Expiry</b>", h2_style),
-            Paragraph("<code>Expiry: 3m</code> or <code>5m</code>", body_style),
-            Paragraph("The exact duration to set on your Quotex timer (e.g. set timer to 3 minutes or 5 minutes).", body_style)
-        ],
-        [
-            Paragraph("<b>Market Regime Tag</b>", h2_style),
-            Paragraph("<code>BULLISH (LONDON)</code>", body_style),
-            Paragraph("Tells you the active market trend direction and the active global session.", body_style)
+            Paragraph("<b>Locked Expiry</b>", h2_style),
+            Paragraph("<code>Expiry: 1m (60s)</code>", body_style),
+            Paragraph("The exact duration on Quotex (1-minute candle expiration).", body_style)
         ],
         [
             Paragraph("<b>Evidence Modal</b>", h2_style),
             Paragraph("<i>Click anywhere on card</i>", body_style),
-            Paragraph("Opens the <b>Signal Inspector Modal</b> listing the exact reasons why the trade fired (e.g. Liquidity Sweep + Pin Bar).", body_style)
+            Paragraph("Opens the <b>Signal Inspector Modal</b> listing the full technical breakdown, entry price, and 60-second trade execution window.", body_style)
         ]
     ]
 
@@ -272,7 +267,7 @@ def generate_pdf():
         [
             Paragraph("<b>📝 Paper Trading</b>", h2_style),
             Paragraph("Live Forward Testing Journal ($10 Simulated Trades).", body_style),
-            Paragraph("Whenever a high-conviction signal (&ge; 70) appears, the bot automatically opens a simulated trade, waits for expiry, calculates WIN/LOSS and PnL, and logs it here with $0 real risk.", body_style)
+            Paragraph("Whenever a viable 1-minute signal (&ge; 55) fires, the bot automatically opens a simulated trade and settles it exactly after 60 seconds at the candle close.", body_style)
         ],
         [
             Paragraph("<b>📊 Performance Analytics</b>", h2_style),
@@ -322,15 +317,15 @@ def generate_pdf():
         ],
         [
             Paragraph("<b>4. Technical Indicator Engine</b>", h2_style),
-            Paragraph("Vectorized calculation of <b>EMA 9/21/50/200 alignment</b>, <b>RSI 14 momentum zones</b>, <b>MACD histogram expansion</b>, <b>Bollinger Bands</b>, and <b>ADX strength (>24)</b>.", body_style)
+            Paragraph("Vectorized calculation of <b>EMA 9/21/50/200 alignment</b>, <b>RSI 14 momentum zones (46–78)</b>, <b>MACD histogram expansion</b>, <b>Bollinger Bands</b>, and <b>ADX strength (>18)</b>.", body_style)
         ],
         [
             Paragraph("<b>5. Quantitative Candle Anatomy</b>", h2_style),
-            Paragraph("Measures real-time body-to-wick ratios and identifies 14 classic patterns including <b>Pin Bars</b>, <b>Engulfing Candles</b>, and <b>Long Rejection Tails</b>.", body_style)
+            Paragraph("Measures real-time body-to-wick ratios and identifies 14 classic patterns including <b>Pin Bars</b>, <b>Engulfing Candles</b>, and <b>1M closed candle momentum</b>.", body_style)
         ],
         [
             Paragraph("<b>6. Economic Payout Gatekeeper</b>", h2_style),
-            Paragraph("Calculates break-even math: <code>P = 1 / (1 + Payout)</code>. At 85% payout, break-even is 54.05%. The bot requires at least 59.05% win probability before permitting a trade.", body_style)
+            Paragraph("Calculates break-even math: <code>P = 1 / (1 + Payout)</code>. At 85% payout, break-even is 54.05%. The bot requires at least 58.1% win probability before permitting a trade.", body_style)
         ]
     ]
 
@@ -383,7 +378,7 @@ def generate_pdf():
     elements.append(Spacer(1, 6))
 
     # SECTION 8: STEP-BY-STEP DAILY ROUTINE
-    elements.append(Paragraph("8. Zia's Step-by-Step Daily Trading Routine", h1_style))
+    elements.append(Paragraph("8. Zia's Step-by-Step Daily Trading Routine (1-Minute Signals)", h1_style))
 
     routine_data = [
         [Paragraph("<b>STEP</b>", ParagraphStyle('R1', fontName='Helvetica-Bold', fontSize=8, textColor=colors.white)),
@@ -392,27 +387,27 @@ def generate_pdf():
         [
             Paragraph("<b>Step 1</b>", h2_style),
             Paragraph("<b>Launch Platform</b>", body_style),
-            Paragraph("Double-click <code>start.bat</code>. Browser opens to <code>http://127.0.0.1:5000</code>.", body_style)
+            Paragraph("Double-click <code>start.bat</code>. Browser opens to <code>http://127.0.0.1:5000</code> (or on phone <code>http://192.168.0.172:5000</code>).", body_style)
         ],
         [
             Paragraph("<b>Step 2</b>", h2_style),
             Paragraph("<b>Watch Countdown</b>", body_style),
-            Paragraph("Look at <code>⏳ Next Scan</code> countdown at the top. Wait for the timer to tick down to <code>0s</code>.", body_style)
+            Paragraph("Look at <code>⏳ Next Scan</code> countdown or card countdowns. Wait for the 1-minute candle to close.", body_style)
         ],
         [
             Paragraph("<b>Step 3</b>", h2_style),
             Paragraph("<b>Spot Signal</b>", body_style),
-            Paragraph("Check for cards with 🟢 <b>CALL ▲ (Green)</b> or 🔴 <b>PUT ▼ (Red)</b> and Evidence Score &ge; 70.", body_style)
+            Paragraph("Check for cards with 🟢 <b>CALL ▲ (Green)</b> or 🔴 <b>PUT ▼ (Red)</b> and Evidence Score &ge; 55.", body_style)
         ],
         [
             Paragraph("<b>Step 4</b>", h2_style),
             Paragraph("<b>Execute on Quotex</b>", body_style),
-            Paragraph("Open Quotex tab $\rightarrow$ Select asset $\rightarrow$ Set recommended expiry timer (3m or 5m) $\rightarrow$ Click UP (Green) or DOWN (Red).", body_style)
+            Paragraph("Open Quotex $\rightarrow$ Select asset $\rightarrow$ Set timer to <b>1 Minute (60s)</b> $\rightarrow$ Click UP (Green) or DOWN (Red).", body_style)
         ],
         [
             Paragraph("<b>Step 5</b>", h2_style),
             Paragraph("<b>Audit in Paper Log</b>", body_style),
-            Paragraph("Check the <b>📝 Paper Trading</b> tab after 3–5 minutes to review the automatically settled outcome.", body_style)
+            Paragraph("Check the <b>📝 Paper Trading</b> tab after 60 seconds to review the automatically settled outcome.", body_style)
         ]
     ]
 
