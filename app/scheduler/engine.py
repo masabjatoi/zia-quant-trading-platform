@@ -17,11 +17,12 @@ from app.scanner.engine import MarketScannerEngine, ScannedAssetResult
 from app.paper_trading.tracker import PaperTradingTracker
 from app.alerts.telegram_bot import TelegramAlertDispatcher
 from app.alerts.desktop import DesktopAlertDispatcher
+from app.database.db import prune_database
 from app.config import config
 
 
 class SchedulerEngine:
-    """Orchestrates periodic scanning, paper trading settlement, and alert dispatching."""
+    """Orchestrates periodic scanning, paper trading settlement, alert dispatching, and storage maintenance."""
 
     def __init__(self, on_scan_complete: Optional[Callable[[List[ScannedAssetResult]], None]] = None):
         self.scanner = MarketScannerEngine()
@@ -36,6 +37,7 @@ class SchedulerEngine:
 
         self.is_running = False
         self._thread: Optional[threading.Thread] = None
+        self._last_maintenance_time: float = 0.0
 
     def start(self) -> None:
         if self.is_running:
@@ -53,8 +55,8 @@ class SchedulerEngine:
                 # 1. Settle expired paper trades
                 self.tracker.settle_pending_trades()
 
-                # 2. Run market scanner
-                results = self.scanner.scan_all_assets()
+                # 2. Run market scanner (force refresh for minute scan)
+                results = self.scanner.scan_all_assets(force_refresh=True)
 
                 # 3. For any High-Conviction / Viable signal, dispatch alerts and open paper trade
                 for res in results:
@@ -73,7 +75,13 @@ class SchedulerEngine:
                 if self.on_scan_complete:
                     self.on_scan_complete(results)
 
-            except Exception as e:
+                # 5. Hourly Storage & Database Maintenance (prunes old records to protect Render storage quota)
+                now_ts = time.time()
+                if (now_ts - self._last_maintenance_time) >= 3600.0:
+                    prune_database(max_records=1000)
+                    self._last_maintenance_time = now_ts
+
+            except Exception:
                 pass
 
             # Sleep in short increments until the next UTC minute boundary (e.g. at 5s past the minute)
@@ -83,3 +91,4 @@ class SchedulerEngine:
 
             while self.is_running and time.time() < target_time:
                 time.sleep(1.0)
+

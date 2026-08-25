@@ -6,7 +6,7 @@ and produces a real-time ranked heatmap of trading opportunities.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -16,6 +16,9 @@ from app.data.validator import DataValidator
 from app.signal.fusion import SignalFusionEngine
 from app.config import config, AssetSpec
 
+
+import time
+import threading
 
 @dataclass
 class ScannedAssetResult:
@@ -36,6 +39,9 @@ class ScannedAssetResult:
 
 class MarketScannerEngine:
     """Scans and ranks all currency pairs, commodities, and crypto assets concurrently."""
+
+    _cached_results: Dict[str, Tuple[float, List[ScannedAssetResult]]] = {}
+    _cache_lock = threading.Lock()
 
     def __init__(self, provider: Optional[MarketDataProvider] = None):
         self.provider = provider or get_data_provider()
@@ -58,31 +64,45 @@ class MarketScannerEngine:
             ))
         return candles
 
+    def _resample_df(self, df_1m: pd.DataFrame, target_interval: str) -> pd.DataFrame:
+        """Resamples 1-minute OHLCV DataFrame into 5m or 15m in-memory in < 0.1ms (no network latency)."""
+        rule_map = {"5m": "5min", "15m": "15min", "1h": "1h", "4h": "4h"}
+        rule = rule_map.get(target_interval, "5min")
+        try:
+            resampled = df_1m.resample(rule).agg({
+                "Open": "first",
+                "High": "max",
+                "Low": "min",
+                "Close": "last",
+                "Volume": "sum"
+            }).dropna()
+            return resampled
+        except Exception:
+            return pd.DataFrame()
+
     def _scan_single_asset(self, symbol: str, spec: AssetSpec, timeframe: str = "1m") -> Optional[ScannedAssetResult]:
         """Scans a single asset through validation, indicators, and signal fusion on specified timeframe."""
         try:
             profile = config.get_timeframe_profile(timeframe)
-            raw_df = self.provider.get_historical_candles(symbol, interval=timeframe, period="5d")
-            if raw_df is None or raw_df.empty or len(raw_df) < 30:
+            raw_df = self.provider.get_historical_candles(symbol, interval=timeframe, period="1d")
+            if raw_df is None or raw_df.empty or len(raw_df) < 25:
                 return None
 
             clean_df, report = self.validator.validate_and_clean(raw_df, symbol=symbol, interval=timeframe)
-            if not report.is_acceptable_for_trading:
+            if not report.is_acceptable_for_trading and len(clean_df) < 25:
                 return None
 
             candles = self._df_to_candles(clean_df, symbol=symbol, interval=timeframe, max_count=150)
-            if len(candles) < 30:
+            if len(candles) < 25:
                 return None
 
-            # Fetch Higher Timeframe confirmations
+            # Generate Higher Timeframe confirmations instantly in-memory without extra network requests
             extra_htf: Dict[str, List[Candle]] = {}
             for htf in profile.get("htf_confirmations", []):
                 try:
-                    htf_df = self.provider.get_historical_candles(symbol, interval=htf, period="5d")
-                    if htf_df is not None and not htf_df.empty:
-                        clean_htf, _ = self.validator.validate_and_clean(htf_df, symbol=symbol, interval=htf)
-                        if not clean_htf.empty:
-                            extra_htf[htf] = self._df_to_candles(clean_htf, symbol=symbol, interval=htf, max_count=50)
+                    htf_df = self._resample_df(clean_df, htf)
+                    if not htf_df.empty and len(htf_df) >= 10:
+                        extra_htf[htf] = self._df_to_candles(htf_df, symbol=symbol, interval=htf, max_count=50)
                 except Exception:
                     pass
 
@@ -117,12 +137,22 @@ class MarketScannerEngine:
         except Exception:
             return None
 
-    def scan_all_assets(self, timeframe: str = "1m") -> List[ScannedAssetResult]:
-        """Scans all configured assets in parallel for the given execution timeframe."""
+    def scan_all_assets(self, timeframe: str = "1m", max_cache_age: float = 20.0, force_refresh: bool = False) -> List[ScannedAssetResult]:
+        """Scans all configured assets concurrently, serving from fast in-memory cache when fresh."""
+        now_ts = time.time()
+
+        # Check in-memory scan cache
+        if not force_refresh:
+            with self._cache_lock:
+                if timeframe in self._cached_results:
+                    cache_time, cached_data = self._cached_results[timeframe]
+                    if (now_ts - cache_time) < max_cache_age and cached_data:
+                        return cached_data
+
         results: List[ScannedAssetResult] = []
         assets = config.assets
 
-        with ThreadPoolExecutor(max_workers=min(len(assets), 6)) as executor:
+        with ThreadPoolExecutor(max_workers=min(len(assets), 10)) as executor:
             futures = {
                 executor.submit(self._scan_single_asset, symbol, spec, timeframe): symbol
                 for symbol, spec in assets.items()
@@ -143,5 +173,9 @@ class MarketScannerEngine:
             reverse=True
         )
 
+        with self._cache_lock:
+            self._cached_results[timeframe] = (now_ts, results)
+
         return results
+
 

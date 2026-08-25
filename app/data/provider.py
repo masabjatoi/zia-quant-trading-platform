@@ -7,7 +7,7 @@ Supports Yahoo Finance for development/research, local file cache, and custom br
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -45,13 +45,17 @@ class MarketDataProvider(ABC):
         pass
 
 
+import time
+
 class YahooDataProvider(MarketDataProvider):
-    """Yahoo Finance implementation with timeout protection and fallback caching."""
+    """Yahoo Finance implementation with in-memory TTL cache, timeout protection and fallback caching."""
 
     def __init__(self, assets: Optional[Dict[str, AssetSpec]] = None):
         self.assets = assets or config.assets
         self.cache_dir = DATA_DIR / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._mem_cache: Dict[str, Tuple[float, pd.DataFrame]] = {}
+        self._mem_ttl_seconds = 25.0  # 25s fast in-memory reuse
 
     def _resolve_ticker(self, symbol: str) -> str:
         clean = symbol.replace("/", "").replace(" ", "").upper()
@@ -74,10 +78,19 @@ class YahooDataProvider(MarketDataProvider):
         self,
         symbol: str,
         interval: str = "1m",
-        period: str = "2d",
+        period: str = "1d",
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
+        cache_key = f"{symbol}_{interval}_{period}"
+        now_ts = time.time()
+
+        # 1. Check in-memory fast TTL cache (returns in < 0.1ms without touching network or disk)
+        if not start and not end and cache_key in self._mem_cache:
+            cached_time, cached_df = self._mem_cache[cache_key]
+            if (now_ts - cached_time) < self._mem_ttl_seconds and not cached_df.empty:
+                return cached_df.copy()
+
         ticker_str = self._resolve_ticker(symbol)
         cache_path = self._get_cache_path(symbol, interval)
 
@@ -87,13 +100,13 @@ class YahooDataProvider(MarketDataProvider):
                 "progress": False,
                 "auto_adjust": False,
                 "threads": False,
-                "timeout": 8,
+                "timeout": 6,
             }
             if start and end:
                 kwargs["start"] = start
                 kwargs["end"] = end
             else:
-                kwargs["period"] = period or ("2d" if interval == "1m" else "5d")
+                kwargs["period"] = period or ("1d" if interval == "1m" else "5d")
 
             df = yf.download(ticker_str, **kwargs)
 
@@ -118,11 +131,15 @@ class YahooDataProvider(MarketDataProvider):
 
                     df = df.sort_index()
 
-                    # Save to local cache
+                    # Save rolling window of max 300 rows to local disk cache to protect Render limits
                     try:
-                        df.to_csv(cache_path)
+                        df.tail(300).to_csv(cache_path)
                     except Exception:
                         pass
+
+                    # Store in fast in-memory TTL cache
+                    if not start and not end:
+                        self._mem_cache[cache_key] = (now_ts, df.copy())
 
                     return df
         except Exception:
@@ -135,12 +152,17 @@ class YahooDataProvider(MarketDataProvider):
                 if not cached_df.empty:
                     if cached_df.index.tz is None:
                         cached_df.index = cached_df.index.tz_localize(timezone.utc)
+                    if not start and not end:
+                        self._mem_cache[cache_key] = (now_ts, cached_df.copy())
                     return cached_df
             except Exception:
                 pass
 
         # If cache and network are unavailable, generate realistic baseline candles for testing
-        return self._generate_fallback_candles(symbol, interval, count=300)
+        fallback = self._generate_fallback_candles(symbol, interval, count=300)
+        if not start and not end:
+            self._mem_cache[cache_key] = (now_ts, fallback.copy())
+        return fallback
 
     def _generate_fallback_candles(self, symbol: str, interval: str, count: int = 300) -> pd.DataFrame:
         """Generates synthetic high-fidelity 1-min baseline data when internet feed is offline."""

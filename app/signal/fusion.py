@@ -100,22 +100,32 @@ class SignalFusionEngine:
         )
         strength = self.confidence_engine.evaluate_strength(score)
 
-        # 4. Hard Higher-Timeframe Alignment (MTFA) Gating
-        # Strictly suppresses signals that run directly into higher-timeframe momentum
+        # 4. Multi-Timeframe Alignment (MTFA) Gating & Conviction Tuning
+        # Boosts signals aligned with dominant HTF flow; penalizes counter-trend momentum
         if extra_htf_candles and direction != SignalDirection.NO_TRADE:
             htf_keys = list(extra_htf_candles.keys())
             if htf_keys:
                 primary_htf_candles = extra_htf_candles[htf_keys[0]]
                 if len(primary_htf_candles) >= 10:
                     htf_regime = self.regime_engine.classify(pd.DataFrame(), primary_htf_candles)
-                    if direction == SignalDirection.CALL and htf_regime.trend.value == "BEARISH":
-                        if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
-                            direction = SignalDirection.NO_TRADE
-                            strength = SignalStrength.NO_TRADE
-                    elif direction == SignalDirection.PUT and htf_regime.trend.value == "BULLISH":
-                        if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
-                            direction = SignalDirection.NO_TRADE
-                            strength = SignalStrength.NO_TRADE
+                    if direction == SignalDirection.CALL:
+                        if htf_regime.trend.value == "BULLISH":
+                            score = min(100, score + 10)
+                        elif htf_regime.trend.value == "BEARISH":
+                            if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
+                                score = max(0, score - 15)
+                                if score < 55:
+                                    direction = SignalDirection.NO_TRADE
+                                    strength = SignalStrength.NO_TRADE
+                    elif direction == SignalDirection.PUT:
+                        if htf_regime.trend.value == "BEARISH":
+                            score = min(100, score + 10)
+                        elif htf_regime.trend.value == "BULLISH":
+                            if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
+                                score = max(0, score - 15)
+                                if score < 55:
+                                    direction = SignalDirection.NO_TRADE
+                                    strength = SignalStrength.NO_TRADE
 
         # 5. Evaluate Tier 3 Economic Viability
         payout_analysis = self.payout_engine.evaluate_payout(

@@ -212,3 +212,9 @@ class StreamingDataProvider(MarketDataProvider):
         if candles:
             return candles[-1].close
         return self.fallback.get_current_price(symbol)
+
+    def _generate_fallback_candles(self, symbol: str, interval: str, count: int = 300) -> pd.DataFrame:
+        if hasattr(self.fallback, "_generate_fallback_candles"):
+            return self.fallback._generate_fallback_candles(symbol, interval, count)
+        return pd.DataFrame()
+

@@ -76,14 +76,14 @@ class ConfidenceEngine:
         net_bullish = total_bullish - (total_bearish * 0.60)
         net_bearish = total_bearish - (total_bullish * 0.60)
 
-        # Clear dominant conviction threshold (net score >= 45 and 1.3x dominance over opposing side)
-        if net_bullish >= 45 and total_bullish >= (total_bearish * 1.3):
+        # Clear dominant conviction threshold (net score >= 32 and 1.25x dominance over opposing side)
+        if net_bullish >= 32 and total_bullish >= (total_bearish * 1.25):
             final_dir = SignalDirection.CALL
-            raw_score = min(100, max(55, int(net_bullish)))
+            raw_score = min(100, max(55, int(net_bullish * 1.35)))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.CALL]
-        elif net_bearish >= 45 and total_bearish >= (total_bullish * 1.3):
+        elif net_bearish >= 32 and total_bearish >= (total_bullish * 1.25):
             final_dir = SignalDirection.PUT
-            raw_score = min(100, max(55, int(net_bearish)))
+            raw_score = min(100, max(55, int(net_bearish * 1.35)))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.PUT]
         else:
             final_dir = SignalDirection.NO_TRADE

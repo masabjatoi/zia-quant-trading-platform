@@ -114,24 +114,24 @@ class ConfigManager:
                 "candle_interval": "1m",
                 "expiry_seconds": 60,
                 "htf_confirmations": ["5m", "15m"],
-                "cooldown_seconds": 180,
-                "min_evidence_score": 70,
-                "min_atr_percentile": 15.0
+                "cooldown_seconds": 60,
+                "min_evidence_score": 55,
+                "min_atr_percentile": 5.0
             },
             "5m": {
                 "candle_interval": "5m",
                 "expiry_seconds": 300,
                 "htf_confirmations": ["15m", "1h"],
-                "cooldown_seconds": 600,
-                "min_evidence_score": 70,
-                "min_atr_percentile": 10.0
+                "cooldown_seconds": 120,
+                "min_evidence_score": 55,
+                "min_atr_percentile": 5.0
             },
             "15m": {
                 "candle_interval": "15m",
                 "expiry_seconds": 900,
                 "htf_confirmations": ["1h", "4h"],
-                "cooldown_seconds": 1800,
-                "min_evidence_score": 70,
+                "cooldown_seconds": 300,
+                "min_evidence_score": 55,
                 "min_atr_percentile": 5.0
             }
         }
@@ -147,6 +147,14 @@ class ConfigManager:
 
     @property
     def db_url(self) -> str:
+        # Check environment variables (Render PostgreSQL or external database)
+        env_db_url = os.environ.get("DATABASE_URL") or os.environ.get("RENDER_POSTGRES_URL")
+        if env_db_url:
+            # Fix legacy postgres:// dialect prefix for SQLAlchemy 1.4/2.0
+            if env_db_url.startswith("postgres://"):
+                env_db_url = env_db_url.replace("postgres://", "postgresql://", 1)
+            return env_db_url
+
         db_path = DATABASE_DIR / "platform.db"
         return f"sqlite:///{db_path}"
 

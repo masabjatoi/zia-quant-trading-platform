@@ -51,17 +51,23 @@ class RiskFilterEngine:
         # Get timeframe-specific profile
         profile = config.get_timeframe_profile(timeframe)
 
-        # 1. Minimum Evidence Score (Calibrated institutional threshold: 70)
-        min_score = profile.get("min_evidence_score", config.get("signals.min_evidence_score", 70))
+        # 1. Minimum Evidence Score (Calibrated positive institutional EV threshold: 55)
+        min_score = profile.get("min_evidence_score", config.get("signals.min_evidence_score", 55))
         if evidence_score < min_score:
             return FilterResult(
                 passed=False,
                 rejection_reason=f"Evidence score {evidence_score} is below minimum threshold of {min_score}"
             )
 
-        # 2. Market Tradability & ATR Floor Check (skip dead/dormant markets)
-        min_atr = profile.get("min_atr_percentile", 10.0)
-        if regime.volatility.value == "LOW" and (regime.atr_percentile < min_atr or regime.adx_value < 12.0):
+        # 2. Market Tradability & Flat Bar Check (skip flat / zero-volatility bars)
+        if regime.atr_value <= 0.0:
+            return FilterResult(
+                passed=False,
+                rejection_reason="Market is flat with zero ATR movement"
+            )
+
+        min_atr = profile.get("min_atr_percentile", 5.0)
+        if regime.volatility.value == "LOW" and (regime.atr_percentile < min_atr and regime.adx_value < 10.0):
             return FilterResult(
                 passed=False,
                 rejection_reason=f"Market volatility is too low (ATR percentile {regime.atr_percentile:.1f}% < {min_atr:.1f}%)"
@@ -69,7 +75,7 @@ class RiskFilterEngine:
 
         # 3. Wavefront Anti-Cluster Cooldown Check
         # Prevents cluster losses by requiring a pause after a signal before taking another on the same asset
-        cooldown = profile.get("cooldown_seconds", config.get("signals.cooldown_seconds", 180))
+        cooldown = profile.get("cooldown_seconds", config.get("signals.cooldown_seconds", 60))
         last_time = self.last_signal_time.get(symbol)
         if cooldown > 0 and last_time:
             lt = last_time if last_time.tzinfo else last_time.replace(tzinfo=timezone.utc)

@@ -26,13 +26,15 @@ class CandleCache:
     def save(self, symbol: str, interval: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
+        # Keep only the latest 300 rows to bound disk usage
+        df_to_save = df.tail(300)
         path = self._get_path(symbol, interval)
         try:
-            df.to_parquet(path)
+            df_to_save.to_parquet(path)
         except Exception:
             # Fallback to CSV if parquet engine isn't available
             csv_path = path.with_suffix(".csv")
-            df.to_csv(csv_path)
+            df_to_save.to_csv(csv_path)
 
     def load(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
         path = self._get_path(symbol, interval)
@@ -50,3 +52,19 @@ class CandleCache:
             except Exception:
                 pass
         return None
+
+    def purge_old_cache(self, max_age_hours: int = 24) -> int:
+        """Removes cache files not modified within max_age_hours."""
+        import time
+        now_ts = time.time()
+        purged = 0
+        cutoff = now_ts - (max_age_hours * 3600)
+        for f in self.cache_dir.glob("*"):
+            if f.is_file() and f.stat().st_mtime < cutoff:
+                try:
+                    f.unlink()
+                    purged += 1
+                except Exception:
+                    pass
+        return purged
+
