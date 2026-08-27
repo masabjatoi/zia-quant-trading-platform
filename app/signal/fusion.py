@@ -117,6 +117,7 @@ class SignalFusionEngine:
                                 if score < 55:
                                     direction = SignalDirection.NO_TRADE
                                     strength = SignalStrength.NO_TRADE
+                                    score = 0  # Clear score — HTF counter-trend veto
                     elif direction == SignalDirection.PUT:
                         if htf_regime.trend.value == "BEARISH":
                             score = min(100, score + 10)
@@ -126,6 +127,7 @@ class SignalFusionEngine:
                                 if score < 55:
                                     direction = SignalDirection.NO_TRADE
                                     strength = SignalStrength.NO_TRADE
+                                    score = 0  # Clear score — HTF counter-trend veto
 
         # 5. Evaluate Tier 3 Economic Viability
         payout_analysis = self.payout_engine.evaluate_payout(
@@ -157,8 +159,7 @@ class SignalFusionEngine:
         if not filter_res.passed:
             direction = SignalDirection.NO_TRADE
             strength = SignalStrength.NO_TRADE
-        else:
-            self.filter_engine.record_signal(symbol=symbol, now=now)
+            score = 0  # Clear score — filtered out, no trade emitted
 
         entry_price = last_candle.close
 
@@ -227,5 +228,7 @@ class SignalFusionEngine:
 
         if direction != SignalDirection.NO_TRADE:
             self.filter_engine.record_signal_emitted(symbol, now)
+
+        sig.rejection_reason = filter_res.rejection_reason if not filter_res.passed else ""
 
         return sig

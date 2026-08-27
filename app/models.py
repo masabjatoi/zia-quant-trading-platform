@@ -175,6 +175,9 @@ class SignalDecision:
     regime: MultiAttributeRegime = field(default_factory=MultiAttributeRegime)
     strategies_fired: List[str] = field(default_factory=list)
 
+    # Transparency: Why was this signal suppressed? Empty string = trade was emitted.
+    rejection_reason: str = ""
+
     # Version Tracking
     feature_version: str = "1.0.0"
     strategy_version: str = "1.0.0"
@@ -194,6 +197,7 @@ class SignalDecision:
             "direction": self.direction.value,
             "strength": self.strength.value,
             "evidence_score": self.evidence_score,
+            "rejection_reason": self.rejection_reason,
             "model_probability": round(self.model_probability, 3) if self.model_probability is not None else None,
             "is_ml_active": self.is_ml_active,
             "payout": self.payout,

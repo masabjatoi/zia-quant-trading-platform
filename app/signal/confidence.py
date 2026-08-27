@@ -86,8 +86,11 @@ class ConfidenceEngine:
             raw_score = min(100, max(55, int(net_bearish * 1.35)))
             relevant_evidence = [e for e in evidence_items if e.direction == SignalDirection.PUT]
         else:
+            # Neither side achieved clear dominance — contested market, no trade.
+            # Return score=0 to avoid displaying a misleadingly high score alongside NO_TRADE.
+            # The raw net scores are balanced/conflicting and do not represent true conviction.
             final_dir = SignalDirection.NO_TRADE
-            raw_score = max(int(net_bullish), int(net_bearish), 0)
+            raw_score = 0
             relevant_evidence = []
 
         return final_dir, raw_score, relevant_evidence
