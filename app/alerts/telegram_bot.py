@@ -8,6 +8,9 @@ and traceable evidence points customized for Zia.
 from typing import Optional
 import requests
 from app.models import SignalDecision, SignalDirection
+from app.observability.logger import setup_structured_logger, redact_secret_text
+
+logger = setup_structured_logger("TradingPlatform.Alerts")
 
 
 class TelegramAlertDispatcher:
@@ -50,6 +53,18 @@ class TelegramAlertDispatcher:
                 "disable_web_page_preview": True
             }
             resp = requests.post(url, json=payload, timeout=5)
-            return resp.status_code == 200
-        except Exception:
+            if resp.status_code != 200:
+                logger.warning(
+                    "Telegram sendMessage failed asset=%s status=%s",
+                    sig.asset,
+                    resp.status_code,
+                )
+                return False
+            return True
+        except Exception as exc:
+            logger.error(
+                "Telegram alert dispatch error asset=%s error=%s",
+                sig.asset,
+                redact_secret_text(str(exc)),
+            )
             return False

@@ -7,7 +7,7 @@ when EMAs are aligned, ADX confirms strong trend (>25), and market structure is 
 
 from typing import Optional
 from app.models import SignalDirection, EvidenceItem
-from .base import BaseStrategy, StrategyContext, StrategySignalResult
+from .base import BaseStrategy, StrategyContext, StrategySignalResult, extract_atr, safe_float
 from app.structure.trend import MarketStructureEngine
 
 
@@ -27,17 +27,19 @@ class TrendStrategy(BaseStrategy):
             return None
 
         row = ctx.df_enriched.iloc[-1]
-        adx = float(row.get("adx", 20.0))
-        atr = float(row.get("atr", 0.0005))
-        rvol = float(row.get("rvol", 1.0))
+        adx = safe_float(row, "adx", default=20.0) or 20.0
+        atr = extract_atr(ctx)
+        if atr <= 0.0:
+            return None
+        rvol = safe_float(row, "rvol", default=1.0) or 1.0
 
         struct = self.structure_engine.analyze(ctx.candles)
         ema_bull = bool(row.get("ema_bull_aligned", False))
         ema_bear = bool(row.get("ema_bear_aligned", False))
         close_price = ctx.candles[-1].close
-        ema_9 = float(row.get("ema_9", close_price))
-        ema_21 = float(row.get("ema_21", close_price))
-        ema_50 = float(row.get("ema_50", close_price))
+        ema_9 = safe_float(row, "ema_9", default=close_price) or close_price
+        ema_21 = safe_float(row, "ema_21", default=close_price) or close_price
+        ema_50 = safe_float(row, "ema_50", default=close_price) or close_price
 
         current_candle = ctx.candles[-1]
         prev_candle = ctx.candles[-2]

@@ -7,7 +7,7 @@ instant rejection and structural failure. One of the highest expectancy setups i
 
 from typing import Optional
 from app.models import SignalDirection, EvidenceItem
-from .base import BaseStrategy, StrategyContext, StrategySignalResult
+from .base import BaseStrategy, StrategyContext, StrategySignalResult, extract_atr, safe_float
 from app.zones.liquidity import LiquidityEngine
 from app.zones.support_resistance import SupportResistanceEngine
 
@@ -41,12 +41,12 @@ class LiquidityStrategy(BaseStrategy):
         supp, res = self.sr_engine.find_nearest_zones(close_price, zones)
 
         current_candle = ctx.candles[-1]
-        atr = 0.0005
-        if not ctx.df_enriched.empty and "atr" in ctx.df_enriched.columns:
-            atr = float(ctx.df_enriched.iloc[-1].get("atr", 0.0005))
+        atr = extract_atr(ctx)
+        if atr <= 0.0:
+            return None
         rvol = 1.0
-        if not ctx.df_enriched.empty and "rvol" in ctx.df_enriched.columns:
-            rvol = float(ctx.df_enriched.iloc[-1].get("rvol", 1.0))
+        if not ctx.df_enriched.empty:
+            rvol = safe_float(ctx.df_enriched.iloc[-1], "rvol", default=1.0) or 1.0
 
         evidence = []
 

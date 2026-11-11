@@ -128,7 +128,7 @@ def test_live_trade_flow():
     with get_db_session() as session:
         t_rec = session.query(PaperTradeRecord).filter_by(id=trade_id).first()
         if t_rec:
-            t_rec.expiry_time = datetime.utcnow()
+            t_rec.expiry_time = datetime.now(timezone.utc).replace(tzinfo=None)
             session.commit()
 
     settled_count = tracker.settle_pending_trades()

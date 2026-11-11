@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.data.provider import get_data_provider
+from tests.fixtures import generate_synthetic_ohlcv
 from app.backtesting.engine import BinaryBacktester
 from app.backtesting.monte_carlo import MonteCarloAnalyzer
 from app.strategies.registry import get_strategy_registry
@@ -48,7 +49,7 @@ def main():
     print("-"*80)
 
     for ticker, name, payout, pip_size in assets:
-        df = provider._generate_fallback_candles(ticker, interval="1m", count=500)
+        df = generate_synthetic_ohlcv(ticker, interval="1m", count=500)
 
         bt = BinaryBacktester(execution_lag_seconds=3, spread_pips=1.0, pip_size=pip_size, payout_rate=payout)
         rep = bt.run_backtest(df, symbol=ticker, timeframe="1m")

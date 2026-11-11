@@ -1,21 +1,22 @@
 """
 Multi-Timeframe Strategy (MTF Trend Alignment)
 ==============================================
-Validates that short-term 1m signals strictly agree with the higher timeframe
-bias (15m dominant trend & 5m market structure).
+Validates that short-term signals strictly agree with higher-timeframe
+market structure across all provided confirmation timeframes.
 """
 
 from typing import Optional
-from app.models import SignalDirection, EvidenceItem, MarketTrend
-from .base import BaseStrategy, StrategyContext, StrategySignalResult
-from app.structure.trend import MarketStructureEngine
+
 from app.features.indicators import IndicatorEngine
+from app.models import EvidenceItem, MarketTrend, SignalDirection
+from app.structure.trend import MarketStructureEngine
+from .base import BaseStrategy, StrategyContext, StrategySignalResult, safe_float
 
 
 class MultiTimeframeStrategy(BaseStrategy):
     name = "MultiTimeframeAlignment"
-    version = "1.0.0"
-    description = "Enforces directional alignment across 15M trend, 5M structure, and 1M trigger"
+    version = "1.1.0"
+    description = "Enforces directional alignment across higher timeframe trend, medium structure, and entry candle"
     target_regimes = []
 
     def __init__(self):
@@ -23,62 +24,87 @@ class MultiTimeframeStrategy(BaseStrategy):
         self.indicator_engine = IndicatorEngine()
 
     def evaluate(self, ctx: StrategyContext) -> Optional[StrategySignalResult]:
-        candles_1m = ctx.candles
-        if len(candles_1m) < 30:
+        candles = ctx.candles
+        if ctx.df_enriched.empty or len(candles) < 30:
             return None
 
-        # Check if HTF data is provided in context
+        struct_ltf = self.structure_engine.analyze(candles)
+        row = ctx.df_enriched.iloc[-1]
+        close = candles[-1].close
+        ema_200 = safe_float(row, "ema_200")
+        ema_50 = safe_float(row, "ema_50")
+        ref_ema = ema_200 if (ema_200 is not None and ema_200 > 0.0) else ema_50
+
         candles_5m = ctx.extra_timeframe_candles.get("5m", [])
         candles_15m = ctx.extra_timeframe_candles.get("15m", [])
+        candles_1h = ctx.extra_timeframe_candles.get("1h", [])
 
-        # If HTF candles are absent, construct approximate HTF trends or evaluate local 1m structure
-        struct_1m = self.structure_engine.analyze(candles_1m)
-        row = ctx.df_enriched.iloc[-1]
-        ema_200 = float(row.get("ema_200", 0.0))
-        close = candles_1m[-1].close
+        # Determine dominant HTF structure from available confirmation streams
+        htf_candles = candles_1h if len(candles_1h) >= 20 else (candles_15m if len(candles_15m) >= 20 else [])
+        mtf_candles = candles_5m if len(candles_5m) >= 15 else (candles_15m if len(candles_15m) >= 15 else [])
 
-        htf_bullish = close > ema_200 and struct_1m.trend == MarketTrend.BULLISH
-        htf_bearish = close < ema_200 and struct_1m.trend == MarketTrend.BEARISH
+        if htf_candles:
+            htf_trend = self.structure_engine.analyze(htf_candles).trend
+        elif ref_ema is not None and ref_ema > 0.0:
+            if close > ref_ema and struct_ltf.trend == MarketTrend.BULLISH:
+                htf_trend = MarketTrend.BULLISH
+            elif close < ref_ema and struct_ltf.trend == MarketTrend.BEARISH:
+                htf_trend = MarketTrend.BEARISH
+            else:
+                htf_trend = MarketTrend.NEUTRAL
+        else:
+            return None
 
-        if candles_15m and len(candles_15m) >= 20:
-            struct_15m = self.structure_engine.analyze(candles_15m)
-            htf_bullish = (struct_15m.trend == MarketTrend.BULLISH)
-            htf_bearish = (struct_15m.trend == MarketTrend.BEARISH)
+        mtf_trend = self.structure_engine.analyze(mtf_candles).trend if mtf_candles else struct_ltf.trend
 
-        evidence = []
+        # Require alignment across HTF, MTF (not opposing), and LTF (not opposing)
+        bull_aligned = (
+            htf_trend == MarketTrend.BULLISH
+            and mtf_trend != MarketTrend.BEARISH
+            and struct_ltf.trend != MarketTrend.BEARISH
+            and (ref_ema is None or ref_ema <= 0.0 or close > ref_ema)
+        )
+        bear_aligned = (
+            htf_trend == MarketTrend.BEARISH
+            and mtf_trend != MarketTrend.BULLISH
+            and struct_ltf.trend != MarketTrend.BULLISH
+            and (ref_ema is None or ref_ema <= 0.0 or close < ref_ema)
+        )
 
-        if htf_bullish:
-            evidence.append(EvidenceItem(
-                engine="mtf",
-                description="Higher timeframe alignment confirms dominant BULLISH flow",
-                direction=SignalDirection.CALL,
-                weight=20.0,
-                confidence=0.84
-            ))
+        if bull_aligned:
             return StrategySignalResult(
                 strategy_name=self.name,
                 direction=SignalDirection.CALL,
                 confidence=0.84,
-                evidence_items=evidence,
+                evidence_items=[
+                    EvidenceItem(
+                        engine="mtf",
+                        description="Multi-timeframe alignment confirms dominant BULLISH flow",
+                        direction=SignalDirection.CALL,
+                        weight=20.0,
+                        confidence=0.84,
+                    )
+                ],
                 suggested_expiry_seconds=60,
-                metadata={"htf_bias": "BULLISH"}
+                metadata={"htf_bias": "BULLISH", "mtf_bias": mtf_trend.value},
             )
 
-        if htf_bearish:
-            evidence.append(EvidenceItem(
-                engine="mtf",
-                description="Higher timeframe alignment confirms dominant BEARISH flow",
-                direction=SignalDirection.PUT,
-                weight=20.0,
-                confidence=0.84
-            ))
+        if bear_aligned:
             return StrategySignalResult(
                 strategy_name=self.name,
                 direction=SignalDirection.PUT,
                 confidence=0.84,
-                evidence_items=evidence,
+                evidence_items=[
+                    EvidenceItem(
+                        engine="mtf",
+                        description="Multi-timeframe alignment confirms dominant BEARISH flow",
+                        direction=SignalDirection.PUT,
+                        weight=20.0,
+                        confidence=0.84,
+                    )
+                ],
                 suggested_expiry_seconds=60,
-                metadata={"htf_bias": "BEARISH"}
+                metadata={"htf_bias": "BEARISH", "mtf_bias": mtf_trend.value},
             )
 
         return None

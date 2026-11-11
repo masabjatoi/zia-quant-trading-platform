@@ -1,0 +1,6 @@
+# Windows-only dependencies for the local read-only MT5 market data bridge.
+# NEVER add MetaTrader5 to root requirements.txt (Render Linux server builds).
+MetaTrader5>=5.0.45
+requests>=2.31.0
+PyYAML>=6.0.1
+

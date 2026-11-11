@@ -70,43 +70,60 @@ def test_expiry_selector_dynamic_timeframes():
 def test_risk_filter_dynamic_profiles_and_cooldown():
     filter_engine = RiskFilterEngine()
     now = datetime.now(timezone.utc)
+    profile = config.get_timeframe_profile("1m")
+    min_score = int(profile.get("min_evidence_score", 55))
+    cooldown = int(profile.get("cooldown_seconds", 60))
 
-    # 1. Reject score below 70
+    # 1. Reject score below configured minimum
     res = filter_engine.check_filters(
         symbol="EUR/USD",
         direction=SignalDirection.CALL,
-        evidence_score=65,
+        evidence_score=min_score - 5,
         regime=None,
         now=now,
         timeframe="1m"
     )
     assert not res.passed
-    assert "below minimum threshold of 70" in res.rejection_reason
+    assert f"below minimum threshold of {min_score}" in res.rejection_reason
 
-    # 2. Accept score >= 70
+    # 2. Fail closed if regime is unavailable
+    res_no_regime = filter_engine.check_filters(
+        symbol="EUR/USD",
+        direction=SignalDirection.CALL,
+        evidence_score=max(min_score, 75),
+        regime=None,
+        now=now,
+        timeframe="1m"
+    )
+    assert not res_no_regime.passed
+    assert "regime" in res_no_regime.rejection_reason.lower()
+
+    # 3. Accept valid score and healthy regime
     class MockRegime:
         volatility = type("MockVol", (), {"value": "NORMAL"})()
         atr_percentile = 50.0
         adx_value = 25.0
+        atr_value = 0.0005
 
     res2 = filter_engine.check_filters(
         symbol="EUR/USD",
         direction=SignalDirection.CALL,
-        evidence_score=75,
+        evidence_score=max(min_score, 75),
         regime=MockRegime(),
         now=now,
         timeframe="1m"
     )
     assert res2.passed
 
-    # 3. Wavefront cooldown rejection within 180s on 1m
+    # 4. Wavefront cooldown rejection within configured cooldown window
     filter_engine.record_signal("EUR/USD", now=now)
+    cooldown_step = max(1, cooldown // 2)
     res3 = filter_engine.check_filters(
         symbol="EUR/USD",
         direction=SignalDirection.CALL,
-        evidence_score=75,
+        evidence_score=max(min_score, 75),
         regime=MockRegime(),
-        now=now + timedelta(seconds=60),
+        now=now + timedelta(seconds=cooldown_step),
         timeframe="1m"
     )
     assert not res3.passed

@@ -1,38 +1,63 @@
 """
 Signal Fusion Engine
 ====================
-The master decision orchestrator. Executes enabled strategies, fuses multi-engine
-evidence without correlation inflation, evaluates 3-tier confidence, and filters output.
+The master decision orchestrator. Executes enabled strategies in deterministic order,
+fuses multi-engine evidence without correlation inflation, performs real HTF regime
+confirmation, recomputes final strength after adjustments, and filters output.
 """
 
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional
 import uuid
+
 import pandas as pd
 
+from app.config import config
+from app.features.indicators import IndicatorEngine
 from app.models import (
     Candle,
+    EvidenceItem,
+    MultiAttributeRegime,
     SignalDecision,
     SignalDirection,
     SignalStrength,
-    EvidenceItem,
-    MultiAttributeRegime
 )
 from app.strategies.base import StrategyContext, StrategySignalResult
 from app.strategies.registry import get_strategy_registry
 from app.structure.regime import MarketRegimeEngine
-from app.features.indicators import IndicatorEngine
 from .confidence import ConfidenceEngine
 from .expiry import ExpirySelector
-from .payout import PayoutEngine
 from .filters import RiskFilterEngine
-from app.config import config
+from .payout import PayoutEngine
+
+
+def _candles_to_df(candles: List[Candle]) -> pd.DataFrame:
+    if not candles:
+        return pd.DataFrame()
+    records = [
+        {
+            "Open": c.open,
+            "High": c.high,
+            "Low": c.low,
+            "Close": c.close,
+            "Volume": c.volume,
+        }
+        for c in candles
+    ]
+    idx = [
+        c.timestamp if c.timestamp.tzinfo is not None else c.timestamp.replace(tzinfo=timezone.utc)
+        for c in candles
+    ]
+    return pd.DataFrame(records, index=pd.DatetimeIndex(idx)).sort_index()
 
 
 class SignalFusionEngine:
     """Combines evidence from multiple independent engines into a unified signal."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        probability_predictor: Optional[Callable[[SignalDirection, pd.DataFrame, MultiAttributeRegime], Optional[float]]] = None,
+    ):
         self.registry = get_strategy_registry()
         self.regime_engine = MarketRegimeEngine()
         self.indicator_engine = IndicatorEngine()
@@ -40,6 +65,7 @@ class SignalFusionEngine:
         self.expiry_selector = ExpirySelector()
         self.payout_engine = PayoutEngine()
         self.filter_engine = RiskFilterEngine()
+        self.probability_predictor = probability_predictor
 
     def process(
         self,
@@ -54,9 +80,12 @@ class SignalFusionEngine:
         if df_1m.empty or len(candles_1m) < 25:
             return SignalDecision(
                 id=str(uuid.uuid4())[:8],
+                timestamp=now or datetime.now(timezone.utc),
                 asset=symbol,
+                timeframe=timeframe,
                 direction=SignalDirection.NO_TRADE,
                 strength=SignalStrength.NO_TRADE,
+                rejection_reason="Insufficient candles for fusion evaluation",
             )
 
         # 1. Compute Indicators & Regime (Reuse if already enriched)
@@ -75,12 +104,11 @@ class SignalFusionEngine:
             extra_timeframe_candles=extra_htf_candles or {},
         )
 
-        # 2. Evaluate all active strategies
-        active_strategies = self.registry.get_enabled()
+        # 2. Evaluate all active strategies in deterministic order
+        active_strategies = sorted(self.registry.get_enabled(), key=lambda s: s.name)
         all_evidence: List[EvidenceItem] = []
         strategies_fired: List[str] = []
-        suggested_expiries: List[int] = []
-        strategy_metas: List[Dict[str, Any]] = []
+        strategy_results: List[StrategySignalResult] = []
 
         for strat in active_strategies:
             if not strat.is_regime_compatible(regime):
@@ -89,60 +117,93 @@ class SignalFusionEngine:
             if res and res.direction != SignalDirection.NO_TRADE:
                 strategies_fired.append(strat.name)
                 all_evidence.extend(res.evidence_items)
-                suggested_expiries.append(res.suggested_expiry_seconds)
-                if res.metadata:
-                    strategy_metas.append(res.metadata)
+                strategy_results.append(res)
 
-        # 3. Fuse evidence and calculate Tier 1 Evidence Score with dynamic regime adaptation
+        # 3. Fuse evidence and calculate Tier 1 Evidence Score
         direction, score, relevant_evidence = self.confidence_engine.calculate_evidence_score(
             all_evidence,
-            regime=regime
+            regime=regime,
         )
-        strength = self.confidence_engine.evaluate_strength(score)
 
-        # 4. Multi-Timeframe Alignment (MTFA) Gating & Conviction Tuning
-        # Boosts signals aligned with dominant HTF flow; penalizes counter-trend momentum
+        # 4. Multi-Timeframe Alignment (MTFA) Gating & Conviction Tuning with enriched HTF DataFrame
+        mtfa_rejection = ""
         if extra_htf_candles and direction != SignalDirection.NO_TRADE:
-            htf_keys = list(extra_htf_candles.keys())
+            htf_keys = sorted(extra_htf_candles.keys())
             if htf_keys:
                 primary_htf_candles = extra_htf_candles[htf_keys[0]]
-                if len(primary_htf_candles) >= 10:
-                    htf_regime = self.regime_engine.classify(pd.DataFrame(), primary_htf_candles)
+                if len(primary_htf_candles) >= 25:
+                    htf_df_raw = _candles_to_df(primary_htf_candles)
+                    htf_df_enriched = self.indicator_engine.calculate_all(htf_df_raw)
+                    htf_regime = self.regime_engine.classify(htf_df_enriched, primary_htf_candles)
+                    min_score = int(
+                        config.get_timeframe_profile(timeframe).get(
+                            "min_evidence_score",
+                            config.get("signals.min_evidence_score", 55),
+                        )
+                    )
                     if direction == SignalDirection.CALL:
                         if htf_regime.trend.value == "BULLISH":
                             score = min(100, score + 10)
                         elif htf_regime.trend.value == "BEARISH":
-                            if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
+                            if not any(s in ("LiquiditySweep", "MeanReversion") for s in strategies_fired):
                                 score = max(0, score - 15)
-                                if score < 55:
+                                if score < min_score:
                                     direction = SignalDirection.NO_TRADE
-                                    strength = SignalStrength.NO_TRADE
-                                    score = 0  # Clear score — HTF counter-trend veto
+                                    score = 0
+                                    mtfa_rejection = "HTF counter-trend veto (BEARISH higher timeframe)"
                     elif direction == SignalDirection.PUT:
                         if htf_regime.trend.value == "BEARISH":
                             score = min(100, score + 10)
                         elif htf_regime.trend.value == "BULLISH":
-                            if not any(s in ["LiquiditySweep", "MeanReversion"] for s in strategies_fired):
+                            if not any(s in ("LiquiditySweep", "MeanReversion") for s in strategies_fired):
                                 score = max(0, score - 15)
-                                if score < 55:
+                                if score < min_score:
                                     direction = SignalDirection.NO_TRADE
-                                    strength = SignalStrength.NO_TRADE
-                                    score = 0  # Clear score — HTF counter-trend veto
+                                    score = 0
+                                    mtfa_rejection = "HTF counter-trend veto (BULLISH higher timeframe)"
 
-        # 5. Evaluate Tier 3 Economic Viability
-        payout_analysis = self.payout_engine.evaluate_payout(
-            payout_rate=payout_rate,
-            estimated_probability=(score / 100.0)
+        # Recompute final strength AFTER MTFA adjustments
+        strength = (
+            self.confidence_engine.evaluate_strength(score)
+            if direction != SignalDirection.NO_TRADE
+            else SignalStrength.NO_TRADE
         )
 
-        # 6. Determine Expiry Duration aligned to active timeframe
-        best_suggested = suggested_expiries[0] if suggested_expiries else 60
+        # 5. Tier 2 / Tier 3 Economic Viability without impersonating score/100 as calibrated prob
+        calibrated_prob: Optional[float] = None
+        is_ml_active = False
+        if direction != SignalDirection.NO_TRADE and self.probability_predictor is not None:
+            predicted = self.probability_predictor(direction, df_enriched, regime)
+            if predicted is not None and 0.0 <= float(predicted) <= 1.0:
+                calibrated_prob = float(predicted)
+                is_ml_active = True
+
+        profile = config.get_timeframe_profile(timeframe)
+        min_score_cfg = int(profile.get("min_evidence_score", config.get("signals.min_evidence_score", 55)))
+        if is_ml_active and calibrated_prob is not None:
+            payout_analysis = self.payout_engine.evaluate_payout(
+                payout_rate=payout_rate,
+                estimated_probability=calibrated_prob,
+            )
+        else:
+            payout_analysis = self.payout_engine.evaluate_uncalibrated_payout(
+                payout_rate=payout_rate,
+                evidence_score=score,
+                min_score=min_score_cfg,
+            )
+
+        # Aligned strategy selection for expiry & execution metadata
+        aligned_results = [r for r in strategy_results if r.direction == direction]
+        aligned_results.sort(key=lambda r: (r.confidence, r.strategy_name), reverse=True)
+        lead_result = aligned_results[0] if aligned_results else None
+
+        best_suggested = lead_result.suggested_expiry_seconds if lead_result else config.default_expiry
         chosen_expiry = self.expiry_selector.select_expiry(
-            strategy_name=strategies_fired[0] if strategies_fired else "Fusion",
+            strategy_name=lead_result.strategy_name if lead_result else "Fusion",
             regime=regime,
             evidence_score=score,
             suggested_expiry=best_suggested,
-            timeframe=timeframe
+            timeframe=timeframe,
         )
 
         # 7. Apply Risk & Quality Filters
@@ -153,63 +214,71 @@ class SignalFusionEngine:
             evidence_score=score,
             regime=regime,
             now=now,
-            timeframe=timeframe
+            timeframe=timeframe,
         )
 
+        rejection_reason = mtfa_rejection
         if not filter_res.passed:
             direction = SignalDirection.NO_TRADE
             strength = SignalStrength.NO_TRADE
-            score = 0  # Clear score — filtered out, no trade emitted
+            score = 0
+            rejection_reason = mtfa_rejection or filter_res.rejection_reason
+        elif not payout_analysis.is_viable:
+            rejection_reason = payout_analysis.reason
 
         entry_price = last_candle.close
 
-        # 7. Extract Execution & Risk Metadata
+        # 8. Extract Execution & Risk Metadata strictly from direction-aligned strategies
         invalidation_p: Optional[float] = None
         target_p: Optional[float] = None
         rr_ratio: Optional[float] = None
         rvol_val = 1.0
 
         if not df_enriched.empty and "rvol" in df_enriched.columns:
-            rvol_val = float(df_enriched.iloc[-1].get("rvol", 1.0))
+            raw_rvol = df_enriched.iloc[-1].get("rvol", 1.0)
+            if pd.notna(raw_rvol):
+                rvol_val = float(raw_rvol)
 
-        if strategy_metas:
-            first_meta = strategy_metas[0]
+        if lead_result and lead_result.metadata:
+            first_meta = lead_result.metadata
             invalidation_p = first_meta.get("invalidation_price")
             target_p = first_meta.get("target_price")
             rr_ratio = first_meta.get("risk_reward_ratio")
-            if "rvol" in first_meta:
+            if "rvol" in first_meta and first_meta["rvol"] is not None:
                 rvol_val = float(first_meta["rvol"])
 
-        # Volume Profile POC (calculated only when trade signal fires for high throughput)
         poc_price = None
         if direction != SignalDirection.NO_TRADE:
             from app.features.volume import VolumeEngine
+
             vol_engine = VolumeEngine()
             vp_profile = vol_engine.calculate_volume_profile(df_enriched, lookback_bars=50)
             poc_price = vp_profile.get("poc")
 
-        # Regime Alignment Multiplier
         regime_align = 1.0
         if direction == SignalDirection.CALL and regime.trend.value == "BULLISH":
             regime_align = 1.25
         elif direction == SignalDirection.PUT and regime.trend.value == "BEARISH":
             regime_align = 1.25
-        elif regime.structure.value == "RANGING" and any(s in ["MeanReversion", "LiquiditySweep"] for s in strategies_fired):
+        elif regime.structure.value == "RANGING" and any(
+            s in ("MeanReversion", "LiquiditySweep") for s in strategies_fired
+        ):
             regime_align = 1.20
 
         sig = SignalDecision(
             id=str(uuid.uuid4())[:8],
             timestamp=now or datetime.now(timezone.utc),
             asset=symbol,
+            timeframe=timeframe,
             direction=direction,
             strength=strength,
             evidence_score=score,
-            model_probability=None,
-            is_ml_active=False,
+            model_probability=calibrated_prob,
+            is_ml_active=is_ml_active,
             payout=payout_rate,
             breakeven_probability=payout_analysis.breakeven_probability,
             required_probability=payout_analysis.required_probability,
-            is_economically_viable=payout_analysis.is_viable,
+            is_economically_viable=payout_analysis.is_viable and (direction != SignalDirection.NO_TRADE),
             recommended_expiry=chosen_expiry,
             entry_price=entry_price,
             invalidation_price=invalidation_p,
@@ -221,14 +290,13 @@ class SignalFusionEngine:
             regime=regime,
             strategies_fired=strategies_fired,
             evidence_list=relevant_evidence,
+            rejection_reason=rejection_reason,
             feature_version="1.1.0",
-            strategy_version="1.1.0",
+            strategy_version="1.2.0",
             model_version="1.0.0",
         )
 
-        if direction != SignalDirection.NO_TRADE:
+        if direction != SignalDirection.NO_TRADE and sig.is_economically_viable:
             self.filter_engine.record_signal_emitted(symbol, now)
-
-        sig.rejection_reason = filter_res.rejection_reason if not filter_res.passed else ""
 
         return sig

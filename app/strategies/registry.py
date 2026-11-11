@@ -29,10 +29,10 @@ class StrategyRegistry:
         self._enabled_strategies.discard(name)
 
     def get_enabled(self) -> List[BaseStrategy]:
-        return [s for name, s in self._strategies.items() if name in self._enabled_strategies]
+        return [self._strategies[name] for name in sorted(self._strategies.keys()) if name in self._enabled_strategies]
 
     def get_all(self) -> List[BaseStrategy]:
-        return list(self._strategies.values())
+        return [self._strategies[name] for name in sorted(self._strategies.keys())]
 
     def get(self, name: str) -> Optional[BaseStrategy]:
         return self._strategies.get(name)

@@ -158,6 +158,29 @@ header {
   white-space: nowrap;
 }
 
+.live-indicator.degraded {
+  color: var(--gold-accent);
+  background: rgba(255, 184, 0, 0.14);
+  border-color: rgba(255, 184, 0, 0.4);
+}
+
+.live-indicator.offline {
+  color: var(--put-red);
+  background: rgba(255, 51, 102, 0.14);
+  border-color: rgba(255, 51, 102, 0.4);
+}
+
+.live-indicator.degraded .pulse-dot {
+  background-color: var(--gold-accent);
+  box-shadow: 0 0 8px var(--gold-accent);
+}
+
+.live-indicator.offline .pulse-dot {
+  background-color: var(--put-red);
+  box-shadow: 0 0 8px var(--put-red);
+  animation: none;
+}
+
 .pulse-dot {
   width: 8px;
   height: 8px;
@@ -721,6 +744,75 @@ td {
 
 .btn-primary:active {
   transform: scale(0.96);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.scanner-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scanner-tf-select {
+  width: auto;
+  min-width: 110px;
+}
+
+.scanner-diagnostics-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(16, 22, 31, 0.75);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.source-pill {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cyan-accent);
+  text-transform: uppercase;
+}
+
+.source-pill.source-mt5 {
+  color: var(--call-green);
+  border-color: rgba(0, 230, 153, 0.35);
+  background: rgba(0, 230, 153, 0.09);
+}
+
+.asset-card.status-degraded {
+  border-color: rgba(255, 184, 0, 0.35);
+}
+
+.health-state-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .backtest-form-grid {

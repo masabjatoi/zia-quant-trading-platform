@@ -7,7 +7,7 @@ and forms price action rejection at support/resistance levels.
 
 from typing import Optional
 from app.models import SignalDirection, EvidenceItem
-from .base import BaseStrategy, StrategyContext, StrategySignalResult
+from .base import BaseStrategy, StrategyContext, StrategySignalResult, extract_atr, safe_float
 from app.zones.support_resistance import SupportResistanceEngine
 from app.features.candles import CandleFeatureEngine
 
@@ -28,13 +28,15 @@ class ReversalStrategy(BaseStrategy):
             return None
 
         row = ctx.df_enriched.iloc[-1]
-        rsi = float(row.get("rsi", 50.0))
-        adx = float(row.get("adx", 20.0))
-        bb_upper = float(row.get("bb_upper", 0.0))
-        bb_middle = float(row.get("bb_middle", 0.0))
-        bb_lower = float(row.get("bb_lower", 0.0))
-        atr = float(row.get("atr", 0.0005))
-        rvol = float(row.get("rvol", 1.0))
+        rsi = safe_float(row, "rsi")
+        adx = safe_float(row, "adx", default=20.0) or 20.0
+        bb_upper = safe_float(row, "bb_upper")
+        bb_middle = safe_float(row, "bb_middle")
+        bb_lower = safe_float(row, "bb_lower")
+        atr = extract_atr(ctx)
+        if atr <= 0.0 or rsi is None:
+            return None
+        rvol = safe_float(row, "rvol", default=1.0) or 1.0
         close = ctx.candles[-1].close
         open_p = ctx.candles[-1].open
         low = ctx.candles[-1].low
@@ -45,20 +47,20 @@ class ReversalStrategy(BaseStrategy):
         if adx >= 32.0 and not (anatomy.is_bullish_rejection or anatomy.is_bearish_rejection):
             return None
 
-        zones = self.sr_engine.detect_zones(ctx.candles)
+        zones = self.sr_engine.detect_zones(ctx.candles[:-1])
         supp, res = self.sr_engine.find_nearest_zones(close, zones)
 
         evidence = []
 
         # 1. Bullish Oversold Exhaustion Reversal (CALL)
-        # Price pierces Lower BB or RSI <= 30 and forms a confirmed rejection wick bounce
         has_lower_rejection = anatomy.lower_wick_ratio >= 0.35 and close > open_p
-        has_band_pierce = low <= (bb_lower * 1.0005) or rsi <= 30.0
+        valid_bb_lower = bb_lower is not None and bb_lower > 0.0
+        has_band_pierce = (valid_bb_lower and low <= (bb_lower + atr * 0.1)) or rsi <= 30.0
 
         if has_band_pierce and has_lower_rejection:
             evidence.append(EvidenceItem(
                 engine="momentum",
-                description=f"Oversold Band Exhaustion: RSI {rsi:.1f} at lower Bollinger Band ({bb_lower:.5f})",
+                description=f"Oversold Band Exhaustion: RSI {rsi:.1f} at lower Bollinger Band ({(bb_lower or 0.0):.5f})",
                 direction=SignalDirection.CALL,
                 weight=25.0,
                 confidence=0.88
@@ -80,7 +82,7 @@ class ReversalStrategy(BaseStrategy):
             ))
 
             invalidation = low - (atr * 0.8)
-            target = bb_middle if bb_middle > close else (close + atr * 1.5)
+            target = bb_middle if (bb_middle is not None and bb_middle > close) else (close + atr * 1.5)
             rr_ratio = abs(target - close) / max(abs(close - invalidation), 1e-9)
 
             return StrategySignalResult(
@@ -100,14 +102,14 @@ class ReversalStrategy(BaseStrategy):
             )
 
         # 2. Bearish Overbought Exhaustion Reversal (PUT)
-        # Price pierces Upper BB or RSI >= 70 and forms a confirmed rejection wick bounce
         has_upper_rejection = anatomy.upper_wick_ratio >= 0.35 and close < open_p
-        has_upper_band_pierce = high >= (bb_upper * 0.9995) or rsi >= 70.0
+        valid_bb_upper = bb_upper is not None and bb_upper > 0.0
+        has_upper_band_pierce = (valid_bb_upper and high >= (bb_upper - atr * 0.1)) or rsi >= 70.0
 
         if has_upper_band_pierce and has_upper_rejection:
             evidence.append(EvidenceItem(
                 engine="momentum",
-                description=f"Overbought Band Exhaustion: RSI {rsi:.1f} at upper Bollinger Band ({bb_upper:.5f})",
+                description=f"Overbought Band Exhaustion: RSI {rsi:.1f} at upper Bollinger Band ({(bb_upper or 0.0):.5f})",
                 direction=SignalDirection.PUT,
                 weight=25.0,
                 confidence=0.88
@@ -129,7 +131,7 @@ class ReversalStrategy(BaseStrategy):
             ))
 
             invalidation = high + (atr * 0.8)
-            target = bb_middle if bb_middle < close else (close - atr * 1.5)
+            target = bb_middle if (bb_middle is not None and bb_middle > 0.0 and bb_middle < close) else (close - atr * 1.5)
             rr_ratio = abs(close - target) / max(abs(invalidation - close), 1e-9)
 
             return StrategySignalResult(

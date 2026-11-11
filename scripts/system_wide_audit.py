@@ -19,6 +19,7 @@ from app.models import SignalDecision, SignalDirection, SignalStrength, MultiAtt
 from app.config import config
 from app.data.provider import get_data_provider
 from app.data.validator import DataValidator
+from tests.fixtures import generate_synthetic_ohlcv, df_to_candles
 from app.features.indicators import IndicatorEngine
 from app.features.candles import CandleFeatureEngine
 from app.structure.swings import SwingDetector
@@ -86,9 +87,8 @@ def run_audit():
     check("Database Schema & SQLAlchemy ORM", test_db)
 
     # 2. Data Provider & Validator
-    provider = get_data_provider()
-    df = provider._generate_fallback_candles("EURUSD", interval="1m", count=300)
-    candles = provider.get_latest_candles("EURUSD", interval="1m", count=150)
+    df = generate_synthetic_ohlcv("EURUSD", interval="1m", count=300)
+    candles = df_to_candles(df.tail(150), interval="1m")
 
     def test_data():
         validator = DataValidator()

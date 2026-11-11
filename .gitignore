@@ -27,5 +27,10 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Backups & Local Secrets
+backups/
+.env
+.env.*
+
 # Standalone desktop bot (private)
 premium_signal_bot.py

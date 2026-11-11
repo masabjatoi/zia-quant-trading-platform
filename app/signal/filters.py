@@ -36,7 +36,7 @@ class RiskFilterEngine:
         symbol: str,
         direction: SignalDirection,
         evidence_score: int,
-        regime: MultiAttributeRegime,
+        regime: Optional[MultiAttributeRegime],
         now: Optional[datetime] = None,
         timeframe: str = "1m",
     ) -> FilterResult:
@@ -51,7 +51,7 @@ class RiskFilterEngine:
         # Get timeframe-specific profile
         profile = config.get_timeframe_profile(timeframe)
 
-        # 1. Minimum Evidence Score (Calibrated positive institutional EV threshold: 55)
+        # 1. Minimum Evidence Score
         min_score = profile.get("min_evidence_score", config.get("signals.min_evidence_score", 55))
         if evidence_score < min_score:
             return FilterResult(
@@ -59,8 +59,15 @@ class RiskFilterEngine:
                 rejection_reason=f"Evidence score {evidence_score} is below minimum threshold of {min_score}"
             )
 
-        # 2. Market Tradability & Flat Bar Check (skip flat / zero-volatility bars)
-        if regime.atr_value <= 0.0:
+        # 2. Market Tradability & Flat Bar Check (fail closed if regime missing or flat / zero-volatility)
+        if regime is None:
+            return FilterResult(
+                passed=False,
+                rejection_reason="Market regime unavailable"
+            )
+
+        atr_val = getattr(regime, "atr_value", 0.0)
+        if atr_val is None or atr_val <= 0.0:
             return FilterResult(
                 passed=False,
                 rejection_reason="Market is flat with zero ATR movement"

@@ -19,7 +19,7 @@ from app.strategies.breakout_strategy import BreakoutStrategy
 from app.strategies.reversal_strategy import ReversalStrategy
 from app.strategies.liquidity_strategy import LiquidityStrategy
 from app.signal.fusion import SignalFusionEngine
-from app.data.provider import YahooDataProvider
+from tests.fixtures import generate_synthetic_ohlcv, df_to_candles
 
 
 def test_strategy_regime_gating_logic():
@@ -55,9 +55,8 @@ def test_strategy_regime_gating_logic():
 
 def test_fusion_engine_signal_payload():
     engine = SignalFusionEngine()
-    provider = YahooDataProvider()
-    candles = provider.get_latest_candles("EUR/USD", interval="1m", count=60)
-    df = provider.get_historical_candles("EUR/USD", interval="1m", period="2d")
+    df = generate_synthetic_ohlcv("EURUSD", interval="1m", count=250)
+    candles = df_to_candles(df.tail(150), interval="1m")
     
     decision = engine.process(
         symbol="EUR/USD",

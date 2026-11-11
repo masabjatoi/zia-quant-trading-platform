@@ -4,29 +4,36 @@ SQLAlchemy Database Models
 Persists signals, historical backtests, paper trading outcomes, and research experiments.
 """
 
-from datetime import datetime
-import json
+from datetime import datetime, timezone
 from sqlalchemy import (
+    Boolean,
     Column,
+    DateTime,
+    Float,
     Integer,
     String,
-    Float,
-    Boolean,
-    DateTime,
     Text,
-    Enum,
 )
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
 
+def utc_now_naive() -> datetime:
+    """Returns timezone-naive UTC datetime normalized from timezone-aware UTC."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class SignalRecord(Base):
     """Stores every generated signal with full causality & evidence breakdown."""
+
     __tablename__ = "signals"
 
     id = Column(String(36), primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    idempotency_key = Column(String(128), nullable=True, unique=True, index=True)
+    timestamp = Column(DateTime, default=utc_now_naive, index=True)
+    candle_timestamp = Column(DateTime, nullable=True, index=True)
+    data_source = Column(String(64), nullable=True)
     asset = Column(String(20), nullable=False, index=True)
     direction = Column(String(10), nullable=False)
     strength = Column(String(20), nullable=False)
@@ -55,29 +62,38 @@ class SignalRecord(Base):
 
 class PaperTradeRecord(Base):
     """Tracks forward-testing trades in real time on live market feeds."""
+
     __tablename__ = "paper_trades"
 
     id = Column(String(36), primary_key=True)
+    idempotency_key = Column(String(128), nullable=True, unique=True, index=True)
     signal_id = Column(String(36), nullable=False, index=True)
     asset = Column(String(20), nullable=False, index=True)
+    candle_timestamp = Column(DateTime, nullable=True, index=True)
     entry_time = Column(DateTime, nullable=False)
     expiry_time = Column(DateTime, nullable=False, index=True)
+    settled_at = Column(DateTime, nullable=True)
     direction = Column(String(10), nullable=False)
     entry_price = Column(Float, nullable=False)
     expiry_price = Column(Float, nullable=True)
+    entry_source = Column(String(64), nullable=True)
+    expiry_source = Column(String(64), nullable=True)
     stake = Column(Float, default=10.0)
     payout = Column(Float, default=0.85)
     outcome = Column(String(15), default="PENDING", index=True)
     pnl = Column(Float, default=0.0)
     is_settled = Column(Boolean, default=False, index=True)
+    settlement_attempts = Column(Integer, default=0)
+    settlement_detail = Column(Text, nullable=True)
 
 
 class BacktestRecord(Base):
     """Summary record of historical walk-forward backtest simulations."""
+
     __tablename__ = "backtests"
 
     id = Column(String(36), primary_key=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
     strategy_name = Column(String(50), nullable=False)
     asset = Column(String(20), nullable=False)
     timeframe = Column(String(10), nullable=False)
@@ -98,10 +114,11 @@ class BacktestRecord(Base):
 
 class ExperimentRecord(Base):
     """Formal tracking of research hypothesis runs and ablation results."""
+
     __tablename__ = "experiments"
 
     id = Column(String(50), primary_key=True)  # e.g., EXP-001
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utc_now_naive)
     hypothesis = Column(String(255), nullable=False)
     strategy = Column(String(50), nullable=False)
     features_used = Column(Text, nullable=False)

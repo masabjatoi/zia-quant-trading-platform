@@ -7,7 +7,7 @@ accompanied by volatility expansion.
 
 from typing import Optional
 from app.models import SignalDirection, EvidenceItem
-from .base import BaseStrategy, StrategyContext, StrategySignalResult
+from .base import BaseStrategy, StrategyContext, StrategySignalResult, extract_atr, safe_float
 from app.zones.support_resistance import SupportResistanceEngine
 from app.features.candles import CandleFeatureEngine
 
@@ -37,8 +37,10 @@ class BreakoutStrategy(BaseStrategy):
         anatomy = self.candle_engine.analyze_candle(current)
 
         row = ctx.df_enriched.iloc[-1]
-        atr = float(row.get("atr", 0.0005))
-        rvol = float(row.get("rvol", 1.0))
+        atr = extract_atr(ctx)
+        if atr <= 0.0:
+            return None
+        rvol = safe_float(row, "rvol", default=1.0) or 1.0
         is_vol_expansion = bool(row.get("is_volume_expansion", False)) or (rvol >= 1.4)
         is_low_vol = bool(row.get("is_low_volume", False)) and (rvol < 0.75)
 
@@ -49,11 +51,15 @@ class BreakoutStrategy(BaseStrategy):
         evidence = []
 
         # 1. Resistance Breakout / Retest (Bullish CALL)
-        resistances = [z for z in zones if z.zone_type == "RESISTANCE"]
+        resistances = sorted(
+            [z for z in zones if z.zone_type == "RESISTANCE"],
+            key=lambda z: abs(current.close - z.center_price),
+        )
         for res in resistances:
-            # Retest Setup: Broke out previously, dipped to test broken level, and rejected bullishly
+            # Retest Setup: Prior close already held above resistance, dipped to test level, rejected bullishly
             is_retest_bounce = (
-                (prev.close >= res.price_high or current.low <= (res.price_high * 1.0005))
+                prev.close >= res.price_high
+                and current.low <= (res.price_high + atr * 0.25)
                 and current.close > res.price_high
                 and current.close > current.open
                 and rvol >= 1.2
@@ -113,11 +119,15 @@ class BreakoutStrategy(BaseStrategy):
                 )
 
         # 2. Support Breakdown / Retest (Bearish PUT)
-        supports = [z for z in zones if z.zone_type == "SUPPORT"]
+        supports = sorted(
+            [z for z in zones if z.zone_type == "SUPPORT"],
+            key=lambda z: abs(current.close - z.center_price),
+        )
         for supp in supports:
-            # Retest Setup: Broke down previously, rallied to test broken level, and rejected bearishly
+            # Retest Setup: Prior close broke below support, rallied to test level, rejected bearishly
             is_retest_bounce = (
-                (prev.close <= supp.price_low or current.high >= (supp.price_low * 0.9995))
+                prev.close <= supp.price_low
+                and current.high >= (supp.price_low - atr * 0.25)
                 and current.close < supp.price_low
                 and current.close < current.open
                 and rvol >= 1.2

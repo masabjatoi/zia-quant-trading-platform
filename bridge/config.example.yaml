@@ -1,0 +1,19 @@
+# Zia Quant Read-Only Windows MT5 Bridge Example Environment
+# Copy values into local environment variables or `.env` (gitignored, NEVER commit secrets).
+#
+# Required on Render Staging (and matching locally on Windows):
+#   MT5_BRIDGE_ENABLED=false          # Set true on Render staging when pairing local bridge
+#   MT5_BRIDGE_TOKEN=<random-32b-token>
+#   MT5_BRIDGE_HMAC_SECRET=<random-32b-secret>
+#   MT5_BRIDGE_ALLOWED_IDS=win-mt5-readonly-1
+#   DATABASE_URL=postgresql://...     # Strongly recommended on Render so DB survives restarts
+#
+# Required locally on Windows PC:
+#   ZIA_RENDER_URL=https://<your-render-staging-url>
+#   MT5_BRIDGE_ID=win-mt5-readonly-1
+#   MT5_TERMINAL_PATH=C:\Program Files\MetaTrader 5\terminal64.exe
+#   MT5_SYMBOL_SUFFIX=                # e.g. "m" or ".r" if broker adds suffixes
+#   MT5_SERVER_UTC_OFFSET_SECONDS=    # Optional override (e.g. 7200 for UTC+2)
+#   MT5_ALLOW_NON_DEMO_READONLY=false # Keep false to strictly enforce DEMO terminal account
+#   MT5_BRIDGE_KILL_SWITCH=false
+

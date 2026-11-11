@@ -93,7 +93,7 @@ assets:
 timeframes:
   primary: "1m"
   supported: ["1m", "5m", "15m"]
-  min_candles_required: 60
+  min_candles_required: 220
   profiles:
     "1m":
       name: "1-Minute Scalping Mode"

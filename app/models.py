@@ -6,7 +6,7 @@ signals, backtesting, and validation reports.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional, Any
 
@@ -49,6 +49,7 @@ class TradeOutcome(str, Enum):
     LOSS = "LOSS"
     TIE = "TIE"
     PENDING = "PENDING"
+    UNRESOLVED = "UNRESOLVED"
 
 
 class DataQualityStatus(str, Enum):
@@ -57,6 +58,41 @@ class DataQualityStatus(str, Enum):
     NEWS_SPIKE = "NEWS_SPIKE"
     DATA_ERROR = "DATA_ERROR"
     GAP = "GAP"
+
+
+@dataclass(frozen=True)
+class QuoteObservation:
+    """Timestamped price observation distinguishing live/forming quote vs closed candle."""
+    symbol: str
+    price: float
+    timestamp: datetime
+    source: str
+    is_closed_candle: bool = False
+    is_stale: bool = False
+
+
+@dataclass
+class MarketDataResult:
+    """Typed market data fetch result carrying provenance, completion, and staleness state."""
+    symbol: str
+    timeframe: str
+    source: str
+    df: Any
+    candles: List["Candle"] = field(default_factory=list)
+    latest_candle_timestamp: Optional[datetime] = None
+    fetched_at: Optional[datetime] = None
+    is_latest_candle_closed: bool = True
+    is_stale: bool = False
+    is_synthetic: bool = False
+    error: Optional[str] = None
+
+    @property
+    def is_usable(self) -> bool:
+        if self.error or self.is_stale or self.is_synthetic:
+            return False
+        if self.df is not None and hasattr(self.df, "empty") and not self.df.empty:
+            return True
+        return len(self.candles) > 0
 
 
 @dataclass(frozen=True)
@@ -144,8 +180,9 @@ class SignalDecision:
     Complete signal with 3-tier confidence breakdown and full causality metadata.
     """
     id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     asset: str = ""
+    timeframe: str = "1m"
     direction: SignalDirection = SignalDirection.NO_TRADE
     strength: SignalStrength = SignalStrength.NO_TRADE
 
@@ -194,6 +231,7 @@ class SignalDecision:
             "id": self.id,
             "timestamp": self.timestamp.isoformat(),
             "asset": self.asset,
+            "timeframe": self.timeframe,
             "direction": self.direction.value,
             "strength": self.strength.value,
             "evidence_score": self.evidence_score,
@@ -272,6 +310,7 @@ class BacktestReport:
     profit_factor: float = 0.0
     brier_score: Optional[float] = None
     trades: List[BacktestTrade] = field(default_factory=list)
+    provenance: Dict[str, Any] = field(default_factory=dict)
 
     def calculate_stats(self) -> None:
         self.total_trades = len(self.trades)

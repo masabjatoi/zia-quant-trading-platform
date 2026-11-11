@@ -116,9 +116,10 @@ class DataValidator:
             return clean_df, report
 
         # 4. Gap Detection & Tagging (Weekends, Market Closes)
-        # Expected step: 1 minute for 1m timeframe
+        step_minutes = {"1m": 1.0, "2m": 2.0, "5m": 5.0, "15m": 15.0, "30m": 30.0, "1h": 60.0, "4h": 240.0, "1d": 1440.0}.get(interval, 1.0)
+        gap_threshold_min = max(float(self.max_gap_minutes), step_minutes * 2.5)
         time_diffs = clean_df.index.to_series().diff().dt.total_seconds() / 60.0
-        gap_mask = time_diffs > self.max_gap_minutes
+        gap_mask = time_diffs > gap_threshold_min
         gap_count = int(gap_mask.sum())
         clean_df["is_session_gap"] = gap_mask.fillna(False)
 

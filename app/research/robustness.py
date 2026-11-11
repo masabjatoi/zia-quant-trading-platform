@@ -6,7 +6,7 @@ a smooth gradient rather than a sharp fragile cliff (which indicates overfitting
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Any, Callable
+from typing import Dict, List, Any, Callable, Optional
 import pandas as pd
 import numpy as np
 

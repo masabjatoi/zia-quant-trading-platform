@@ -29,6 +29,8 @@ class AnalyticsEngine:
                     "total_trades": 0,
                     "wins": 0,
                     "losses": 0,
+                    "ties": 0,
+                    "unresolved": 0,
                     "win_rate": 0.0,
                     "total_pnl": 0.0,
                     "profit_factor": 0.0,
@@ -38,24 +40,30 @@ class AnalyticsEngine:
 
             wins = sum(1 for t in trades if t.outcome == "WIN")
             losses = sum(1 for t in trades if t.outcome == "LOSS")
+            ties = sum(1 for t in trades if t.outcome == "TIE")
+            unresolved = sum(1 for t in trades if t.outcome == "UNRESOLVED")
             decisive = wins + losses
             win_rate = (wins / decisive * 100.0) if decisive > 0 else 0.0
             total_pnl = sum(t.pnl for t in trades)
 
             win_pnl = sum(t.pnl for t in trades if t.pnl > 0)
             loss_pnl = abs(sum(t.pnl for t in trades if t.pnl < 0))
-            pf = (win_pnl / loss_pnl) if loss_pnl > 0 else 99.0
+            pf = (win_pnl / loss_pnl) if loss_pnl > 0 else (99.0 if win_pnl > 0 else 0.0)
 
             # Breakdown by asset
             by_asset: Dict[str, Dict[str, Any]] = {}
             for t in trades:
                 if t.asset not in by_asset:
-                    by_asset[t.asset] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+                    by_asset[t.asset] = {"total": 0, "wins": 0, "losses": 0, "ties": 0, "unresolved": 0, "pnl": 0.0}
                 by_asset[t.asset]["total"] += 1
                 if t.outcome == "WIN":
                     by_asset[t.asset]["wins"] += 1
                 elif t.outcome == "LOSS":
                     by_asset[t.asset]["losses"] += 1
+                elif t.outcome == "TIE":
+                    by_asset[t.asset]["ties"] += 1
+                elif t.outcome == "UNRESOLVED":
+                    by_asset[t.asset]["unresolved"] += 1
                 by_asset[t.asset]["pnl"] += t.pnl
 
             for a, d in by_asset.items():
@@ -67,6 +75,8 @@ class AnalyticsEngine:
                 "total_trades": total,
                 "wins": wins,
                 "losses": losses,
+                "ties": ties,
+                "unresolved": unresolved,
                 "win_rate": round(win_rate, 1),
                 "total_pnl": round(total_pnl, 2),
                 "profit_factor": round(pf, 2),
