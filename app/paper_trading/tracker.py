@@ -160,15 +160,19 @@ class PaperTradingTracker:
                         asset=signal.asset,
                         direction=signal.direction.value,
                         strength=signal.strength.value,
-                        evidence_score=signal.evidence_score,
-                        model_probability=signal.model_probability,
-                        is_ml_active=signal.is_ml_active,
-                        payout=signal.payout,
-                        breakeven_probability=signal.breakeven_probability,
-                        required_probability=signal.required_probability,
-                        is_economically_viable=signal.is_economically_viable,
-                        recommended_expiry=signal.recommended_expiry,
-                        entry_price=signal.entry_price,
+                        evidence_score=int(signal.evidence_score),
+                        model_probability=(
+                            float(signal.model_probability)
+                            if signal.model_probability is not None
+                            else None
+                        ),
+                        is_ml_active=bool(signal.is_ml_active),
+                        payout=float(signal.payout),
+                        breakeven_probability=float(signal.breakeven_probability),
+                        required_probability=float(signal.required_probability),
+                        is_economically_viable=bool(signal.is_economically_viable),
+                        recommended_expiry=int(signal.recommended_expiry),
+                        entry_price=float(signal.entry_price),
                         outcome=TradeOutcome.PENDING.value,
                         regime_json=json.dumps(signal.regime.to_dict()),
                         evidence_json=json.dumps(
@@ -177,8 +181,8 @@ class PaperTradingTracker:
                                     "engine": e.engine,
                                     "description": e.description,
                                     "direction": e.direction.value,
-                                    "weight": e.weight,
-                                    "confidence": e.confidence,
+                                    "weight": float(e.weight),
+                                    "confidence": float(e.confidence),
                                 }
                                 for e in signal.evidence_list
                             ]
@@ -203,10 +207,10 @@ class PaperTradingTracker:
                     entry_time=_to_db_utc_naive(now_utc),
                     expiry_time=_to_db_utc_naive(expiry_utc),
                     direction=signal.direction.value,
-                    entry_price=signal.entry_price,
+                    entry_price=float(signal.entry_price),
                     entry_source=source_label,
-                    stake=stake,
-                    payout=signal.payout,
+                    stake=float(stake),
+                    payout=float(signal.payout),
                     outcome=TradeOutcome.PENDING.value,
                     pnl=0.0,
                     is_settled=False,

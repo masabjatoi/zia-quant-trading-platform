@@ -472,3 +472,16 @@ print(json.dumps(responses))
     assert payload["/static/manifest.json"]["status_code"] == 200
     assert payload["/api/scan_bad_tf"]["status_code"] == 400
     assert payload["/api/backtest_no_data"]["status_code"] == 400
+
+
+def test_render_postgresql_url_normalization_and_driver(monkeypatch):
+    from sqlalchemy import create_engine
+    from app.config import config
+
+    monkeypatch.setenv("DATABASE_URL", "  postgres://user:pass@localhost:5432/zia_quant?sslmode=require  ")
+    normalized = config.db_url
+    assert normalized == "postgresql://user:pass@localhost:5432/zia_quant?sslmode=require"
+
+    pg_engine = create_engine(normalized, pool_pre_ping=True)
+    assert pg_engine.dialect.name == "postgresql"
+    pg_engine.dispose()

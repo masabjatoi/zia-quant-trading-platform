@@ -148,7 +148,7 @@ class ConfigManager:
     @property
     def db_url(self) -> str:
         # Check environment variables (Render PostgreSQL or external database)
-        env_db_url = os.environ.get("DATABASE_URL") or os.environ.get("RENDER_POSTGRES_URL")
+        env_db_url = (os.environ.get("DATABASE_URL") or os.environ.get("RENDER_POSTGRES_URL") or "").strip()
         if env_db_url:
             # Fix legacy postgres:// dialect prefix for SQLAlchemy 1.4/2.0
             if env_db_url.startswith("postgres://"):
