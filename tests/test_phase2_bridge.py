@@ -366,3 +366,30 @@ def test_bridge_bootstrap_recovery_and_health_staleness(monkeypatch, tmp_path):
 
     eng.dispose()
     get_data_provider(reset=True)
+
+
+def test_load_dotenv_file_preserves_explicit_env_and_strips_quotes(tmp_path, monkeypatch):
+    import os
+    from bridge.mt5_bridge import load_dotenv_file
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        '\n'.join([
+            "# Comment line",
+            'ZIA_RENDER_URL="https://zia-quant-trading-platform.onrender.com"',
+            "MT5_BRIDGE_TOKEN='tok_from_dotenv'",
+            "export MT5_BRIDGE_HMAC_SECRET=sec_from_dotenv",
+            "EMPTY_KEY=",
+        ]),
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("ZIA_RENDER_URL", raising=False)
+    monkeypatch.setenv("MT5_BRIDGE_TOKEN", "explicit_override_token")
+    monkeypatch.delenv("MT5_BRIDGE_HMAC_SECRET", raising=False)
+
+    loaded = load_dotenv_file(env_file)
+    assert loaded >= 2
+    assert os.environ["ZIA_RENDER_URL"] == "https://zia-quant-trading-platform.onrender.com"
+    assert os.environ["MT5_BRIDGE_TOKEN"] == "explicit_override_token"
+    assert os.environ["MT5_BRIDGE_HMAC_SECRET"] == "sec_from_dotenv"

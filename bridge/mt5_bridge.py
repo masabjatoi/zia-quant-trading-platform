@@ -418,13 +418,45 @@ class MT5RenderBridge:
         }
 
 
+def load_dotenv_file(env_path: Optional[Path] = None) -> int:
+    """Loads simple KEY=VALUE pairs from a local .env file without overriding existing env vars."""
+    target = env_path or (Path(__file__).resolve().parent.parent / ".env")
+    if not target.is_file():
+        return 0
+
+    loaded = 0
+    for raw_line in target.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if not key:
+            continue
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+            val = val[1:-1]
+        if key not in os.environ or not os.environ[key].strip():
+            os.environ[key] = val
+            loaded += 1
+    return loaded
+
+
 def run_bridge_cli(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Zia Quant Read-Only Windows MT5 Bridge")
     parser.add_argument("--once", action="store_true", help="Run a single heartbeat/sync cycle and exit")
     parser.add_argument("--self-check", action="store_true", help="Check local MT5 terminal connectivity read-only and exit")
     parser.add_argument("--verify-health", action="store_true", help="After syncing, query Render /api/health to verify pairing")
     parser.add_argument("--interval", type=float, default=15.0, help="Polling interval in seconds (default: 15s)")
+    parser.add_argument("--env-file", type=str, default="", help="Optional .env path to load bridge credentials from")
     args = parser.parse_args(argv)
+
+    dotenv_path = Path(args.env_file) if args.env_file.strip() else None
+    load_dotenv_file(dotenv_path)
 
     terminal_path = os.environ.get("MT5_TERMINAL_PATH", DEFAULT_TERMINAL_PATH)
     offset_env = os.environ.get("MT5_SERVER_UTC_OFFSET_SECONDS")
